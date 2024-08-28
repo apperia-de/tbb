@@ -4,13 +4,14 @@ Tbb aims to provide a starting point for building Telegram bots in go.
 The Telegram Bot Builder is based on the concurrent library [NicoNex/echotron](https://github.com/NicoNex/echotron).
 To spin up a bot on your own see the examples section for details.
 
-## Features
+[![Go Report Card](https://goreportcard.com/badge/github.com/apperia-de/tbb)](https://goreportcard.com/report/github.com/apperia-de/tbb)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/apperia-de/tbb?style=flat)
+![GitHub Licence](https://img.shields.io/github/license/apperia-de/tbb)
 
 - Starting point for your own Telegram bot.
-- Implements Telegram Bot user handling in either sqlite (default), mysql or postgres.
 - Easily extendable.
-- Fast implementation of new Telegram bots.
-- Time zone handling by coordinates: Can used a location message from a user to set the current user time zone and offset from UTC.
+- Implements Telegram bot user handling in either sqlite (default), mysql or postgres.
+- Time zone handling by coordinates: Can use a location message from a user to set the current user time zone and offset from UTC.
 
 ## How to use tbb
 
