@@ -1,4 +1,4 @@
-package tbb
+package model
 
 import (
 	"time"

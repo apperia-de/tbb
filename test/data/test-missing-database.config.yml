@@ -1,0 +1,11 @@
+##############################################
+# Telegram Bot Builder example configuration #
+##############################################
+
+debug: true
+logLevel: info # One of debug | info | warn | error
+telegram:
+  botToken: "EXAMPLE"
+database:
+  #dsn: "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local" # Only required for type postgres or mysql
+botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.

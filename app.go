@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
+	"github.com/apperia-de/tbb/pkg/model"
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 	"log/slog"
 	"os"
@@ -116,14 +117,19 @@ func (a *App) StartWithWebhook(webhookURL string) {
 	a.logger.Error(a.dsp.ListenWebhook(webhookURL).Error())
 }
 
-// DB returns the database handle for the bot, so that the database can easily be adjusted and extended.
-func (a *App) DB() *DB {
-	return a.db
-}
-
 // API returns the reference to the echotron.API.
 func (a *App) API() echotron.API {
 	return a.api
+}
+
+// Config returns the config
+func (a *App) Config() *Config {
+	return a.cfg
+}
+
+// DB returns the database handle for the bot, so that the database can easily be adjusted and extended.
+func (a *App) DB() *DB {
+	return a.db
 }
 
 type TZInfo struct {
@@ -136,13 +142,13 @@ type TZInfo struct {
 }
 
 // GetTimezoneInfo returns the time zone info for the given coordinates if available.
-func (a *App) GetTimezoneInfo(lat, lon float64) *TZInfo {
+func (a *App) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
 	res, err := a.tzc.Search(lat, lon)
 	if err != nil {
-		a.logger.Error(err.Error())
-		return nil
+		return nil, err
 	}
 	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon))
+
 	tzi := TZInfo{
 		Latitude:  lat,
 		Longitude: lon,
@@ -151,8 +157,7 @@ func (a *App) GetTimezoneInfo(lat, lon float64) *TZInfo {
 
 	loc, err := time.LoadLocation(tzi.Location)
 	if err != nil {
-		a.logger.Error(err.Error())
-		return nil
+		return nil, err
 	}
 	// Declaring t for Zone method
 	t := time.Now().In(loc)
@@ -160,14 +165,17 @@ func (a *App) GetTimezoneInfo(lat, lon float64) *TZInfo {
 	// Calling Zone() method
 	tzi.ZoneName, tzi.Offset = t.Zone()
 	tzi.IsDST = t.IsDST()
+	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon), "time zone info", tzi)
 
-	return &tzi
+	return &tzi, nil
 }
 
 // GetCurrentTimeOffset returns the time offset in seconds for the given coordinates
+// or zero if no time zone info may be obtained from coordinates.
 func (a *App) GetCurrentTimeOffset(lat, lon float64) int {
-	tzi := a.GetTimezoneInfo(lat, lon)
-	if tzi == nil {
+	tzi, err := a.GetTimezoneInfo(lat, lon)
+	if err != nil {
+		a.logger.Error(err.Error())
 		return 0
 	}
 	return tzi.Offset
@@ -207,7 +215,7 @@ func (a *App) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	if err != nil {
 		b.logger.Warn(err.Error())
 		b.logger.Info(fmt.Sprintf("Creating new user with ChatID=%d", b.chatID))
-		b.user = &User{ChatID: b.chatID, UserInfo: &UserInfo{}, UserPhoto: &UserPhoto{}}
+		b.user = &model.User{ChatID: b.chatID, UserInfo: &model.UserInfo{}, UserPhoto: &model.UserPhoto{}}
 	}
 
 	// Create a new UpdateHandler and set Bot reference back on handler

@@ -1,0 +1,18 @@
+##############################################
+# Telegram Bot Builder example configuration #
+##############################################
+
+debug: true
+logLevel: info # One of debug | info | warn | error
+telegram:
+  botToken: "YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
+database:
+  type: sqlite # One of sqlite | postgres | mysql
+  filename: "test/data/test.app.db" # Only required for type sqlite
+  #dsn: "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local" # Only required for type postgres or mysql
+botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.
+customData:
+  version: "v0.1.0"
+  username: me
+  password: keins
+  blacklist: [ 1, 2, 3 ]

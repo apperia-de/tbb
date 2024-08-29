@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
+	"github.com/apperia-de/tbb/pkg/model"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +29,7 @@ type Bot struct {
 	cmd     *Command
 	handler UpdateHandler
 	state   StateFn
-	user    *User
+	user    *model.User
 	logger  *slog.Logger
 	dTimer  *time.Timer // Destruction timer
 }
@@ -45,7 +46,7 @@ func (b *Bot) Command() *Command {
 }
 
 // User returns the User associated with the bot
-func (b *Bot) User() *User {
+func (b *Bot) User() *model.User {
 	return b.user
 }
 
@@ -131,7 +132,9 @@ func (b *Bot) Update(u *echotron.Update) {
 	if time.Since(b.user.UpdatedAt).Hours() > 24*7 {
 		go func() {
 			b.updateUser(u)
-			b.updateUserPhoto()
+			if err := b.updateUserPhoto(); err != nil {
+				b.Log().Error(err.Error())
+			}
 			b.app.DB().Save(b.user)
 		}()
 	}
@@ -250,58 +253,54 @@ func (b *Bot) destruct() {
 	b.logger.Info(fmt.Sprintf("Deleted bot instance with ChatID=%d", b.chatID))
 }
 
-func (b *Bot) updateUserPhoto() {
+func (b *Bot) updateUserPhoto() error {
 	res, err := b.app.api.GetUserProfilePhotos(b.user.ChatID, &echotron.UserProfileOptions{Offset: 0, Limit: 1})
 	if err != nil {
-		b.logger.Error(err.Error())
-		return
+		return err
 	}
 
-	if res.Ok {
-		b.logger.Debug("GetUserProfilePhotos request successful!", "totalPhotos", res.Result.TotalCount)
-
-		if len(res.Result.Photos) == 0 {
-			return
-		}
-
-		newestPhotoSizes := res.Result.Photos[0]
-		biggestPhotoSize := newestPhotoSizes[len(newestPhotoSizes)-1]
-
-		fileID, err := b.app.api.GetFile(biggestPhotoSize.FileID)
-		if err != nil {
-			b.logger.Error(err.Error())
-		}
-
-		photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.app.cfg.Telegram.BotToken, fileID.Result.FilePath)
-		b.logger.Debug(fileID.Result.FilePath)
-		fileRes, err := http.Get(photoURL)
-		if err != nil {
-			b.logger.Error(err.Error())
-		}
-
-		data, err := io.ReadAll(fileRes.Body)
-		if err != nil {
-			b.logger.Error(err.Error())
-		}
-
-		b.user.UserPhoto = &UserPhoto{
-			UserID:       b.user.ID,
-			FileID:       biggestPhotoSize.FileID,
-			FileUniqueID: biggestPhotoSize.FileUniqueID,
-			FileSize:     biggestPhotoSize.FileSize,
-			FileHash:     fmt.Sprintf("%x", md5.Sum(data)),
-			FileData:     data,
-			Width:        biggestPhotoSize.Width,
-			Height:       biggestPhotoSize.Height,
-		}
-
-		b.logger.Info("Updated user photo", "user", b.user)
-	} else {
-		b.logger.Debug("GetUserProfilePhotos failed!")
+	if !res.Ok {
+		return errors.New("could not get user profile")
 	}
-}
 
-type InlineKeyboardButton struct {
-	Text string `json:"text"`
-	Data string `json:"data"`
+	b.logger.Debug("GetUserProfilePhotos request successful!", "totalPhotos", res.Result.TotalCount)
+
+	if len(res.Result.Photos) == 0 {
+		return nil
+	}
+
+	newestPhotoSizes := res.Result.Photos[0]
+	biggestPhotoSize := newestPhotoSizes[len(newestPhotoSizes)-1]
+
+	fileID, err := b.app.api.GetFile(biggestPhotoSize.FileID)
+	if err != nil {
+		return err
+	}
+
+	photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.app.cfg.Telegram.BotToken, fileID.Result.FilePath)
+	b.logger.Debug(fileID.Result.FilePath)
+	fileRes, err := http.Get(photoURL)
+	if err != nil {
+		return err
+	}
+
+	data, err := io.ReadAll(fileRes.Body)
+	if err != nil {
+		return err
+	}
+
+	b.user.UserPhoto = &model.UserPhoto{
+		UserID:       b.user.ID,
+		FileID:       biggestPhotoSize.FileID,
+		FileUniqueID: biggestPhotoSize.FileUniqueID,
+		FileSize:     biggestPhotoSize.FileSize,
+		FileHash:     fmt.Sprintf("%x", md5.Sum(data)),
+		FileData:     data,
+		Width:        biggestPhotoSize.Width,
+		Height:       biggestPhotoSize.Height,
+	}
+
+	b.logger.Info("Updated user photo", "user", b.user)
+
+	return nil
 }

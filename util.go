@@ -10,8 +10,13 @@ import (
 	"strings"
 )
 
-//go:embed internal/data/timezone.data
+//go:embed assets/timezone.data
 var efs embed.FS
+
+type InlineKeyboardButton struct {
+	Text string `json:"text"`
+	Data string `json:"data"`
+}
 
 // GetUserFromUpdate returns the echotron.User from a given echotron.Update
 func GetUserFromUpdate(u *echotron.Update) echotron.User {
@@ -45,23 +50,6 @@ func GetUserFromUpdate(u *echotron.Update) echotron.User {
 	}
 }
 
-// GetLogLevel converts string log levels to slog.Level representation.
-// Can be one of "debug", "info", "warn" or "error".
-func GetLogLevel(level string) slog.Level {
-	switch strings.ToUpper(level) {
-	case "DEBUG":
-		return slog.LevelDebug
-	case "INFO":
-		return slog.LevelInfo
-	case "WARN":
-		return slog.LevelWarn
-	case "ERROR":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
-
 // BuildInlineKeyboardButtonRow helper function for creating Telegram inline keyboards
 func BuildInlineKeyboardButtonRow(buttons []InlineKeyboardButton) []echotron.InlineKeyboardButton {
 	var res []echotron.InlineKeyboardButton
@@ -91,6 +79,23 @@ func buildCommandRegistry(commands []Command) CommandRegistry {
 	return cmdReg
 }
 
+// getLogLevel converts string log levels to slog.Level representation.
+// Can be one of "debug", "info", "warn" or "error".
+func getLogLevel(level string) slog.Level {
+	switch strings.ToUpper(level) {
+	case "DEBUG":
+		return slog.LevelDebug
+	case "INFO":
+		return slog.LevelInfo
+	case "WARN":
+		return slog.LevelWarn
+	case "ERROR":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func loadTimezoneCache() *timezone.Timezonecache {
 	var (
 		f, tempF *os.File
@@ -105,7 +110,7 @@ func loadTimezoneCache() *timezone.Timezonecache {
 	}
 	defer os.Remove(tempF.Name())
 
-	data, err = efs.ReadFile("internal/data/timezone.data")
+	data, err = efs.ReadFile("assets/timezone.data")
 	if err != nil {
 		panic(err)
 	}

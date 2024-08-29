@@ -1,17 +1,18 @@
 # See https://makefiletutorial.com for in depth examples
 
 CURRENT_VERSION := $(shell cat VERSION)
-NEXT_MAJOR_VERSION := $(shell sh internal/scripts/semverinc.sh $(CURRENT_VERSION) 0)
-NEXT_MINOR_VERSION := $(shell sh internal/scripts/semverinc.sh $(CURRENT_VERSION) 1)
-NEXT_PATCH_VERSION := $(shell sh internal/scripts/semverinc.sh $(CURRENT_VERSION) 2)
+NEXT_MAJOR_VERSION := $(shell sh scripts/semverinc.sh $(CURRENT_VERSION) 0)
+NEXT_MINOR_VERSION := $(shell sh scripts/semverinc.sh $(CURRENT_VERSION) 1)
+NEXT_PATCH_VERSION := $(shell sh scripts/semverinc.sh $(CURRENT_VERSION) 2)
 
 build-timezone-data:
 	mkdir -p bin
 	go build -o bin/tz cmd/timezone/main.go
 	./bin/tz -build -db data/timezone.data
 
+.PHONY: test
 test:
-	go test ./...
+	go test -v ./...
 
 test-versioning:
 	@echo Sematic versioning test...
@@ -21,7 +22,8 @@ test-versioning:
 	@echo Next major version: v$(NEXT_MAJOR_VERSION)
 
 update-all:
-	go get -u ./...
+	go get -u 	./...
+	go mod tidy
 
 lint:
 	golangci-lint run

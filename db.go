@@ -3,12 +3,12 @@ package tbb
 import (
 	"context"
 	"fmt"
+	"github.com/apperia-de/tbb/pkg/model"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log/slog"
-	//gorm_logger "gorm.io/gorm/logger"
 )
 
 type DB struct {
@@ -31,7 +31,6 @@ func newDB(cfg *Config, logger *slog.Logger) *DB {
 
 	gormCfg := gorm.Config{
 		FullSaveAssociations: true,
-		Logger:               nil, //gorm_logger.Default.LogMode(gorm_logger.Info),
 	}
 
 	switch cfg.Database.Type {
@@ -61,19 +60,19 @@ func newDB(cfg *Config, logger *slog.Logger) *DB {
 	db := &DB{
 		DB:     gormDB,
 		ctx:    context.Background(),
-		logger: logger.WithGroup("database").With("debug", cfg.Debug, "verbose", GetLogLevel(cfg.LogLevel) == slog.LevelDebug),
+		logger: logger.WithGroup("database").With("debug", cfg.Debug, "verbose", getLogLevel(cfg.LogLevel) == slog.LevelDebug),
 	}
 
-	if err = db.AutoMigrate(&User{}, &UserInfo{}, &UserPhoto{}); err != nil {
+	if err = db.AutoMigrate(&model.User{}, &model.UserInfo{}, &model.UserPhoto{}); err != nil {
 		panic(err)
 	}
 
 	return db
 }
 
-func (db *DB) FindUserByChatID(chatID int64) (*User, error) {
+func (db *DB) FindUserByChatID(chatID int64) (*model.User, error) {
 	var (
-		user User
+		user model.User
 		err  error
 	)
 	err = db.Preload("UserInfo").Preload("UserPhoto").First(&user, "chat_id = ?", chatID).Error

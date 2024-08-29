@@ -28,7 +28,11 @@ func (c *Timezone) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 
 	loc := *u.Message.Location
 	_, _ = c.Bot.API().SendMessage(fmt.Sprintf("I receive your location update: Latitude = %f | Long = %f", loc.Latitude, loc.Longitude), u.ChatID(), nil)
-	tzi := c.Bot.App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
+	tzi, err := c.Bot.App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
+	if err != nil {
+		c.Bot.Log().Error("Error getting timezone info", "error", err)
+		return nil
+	}
 
 	user := c.Bot.User()
 	user.UserInfo.Longitude = tzi.Longitude

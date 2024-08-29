@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/NicoNex/echotron/v3"
 	"github.com/apperia-de/tbb"
-	"github.com/apperia-de/tbb/command"
+	"github.com/apperia-de/tbb/pkg/command"
 )
 
 /*
@@ -17,11 +17,13 @@ type myBotHandler struct {
 
 func (h *myBotHandler) HandleMessage(m echotron.Message) tbb.StateFn {
 	if m.Location != nil {
-		tzi := h.Bot().App().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
-		if tzi != nil {
-			_, _ = h.Bot().API().SendMessage("Got a location: ```json\n"+tbb.PrintAsJson(tzi, true)+"\n```", m.From.ID, &echotron.MessageOptions{ParseMode: echotron.MarkdownV2})
+		tzi, err := h.Bot().App().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
+		if err != nil {
+			h.Bot().Log().Error(err.Error())
 			return nil
 		}
+		_, _ = h.Bot().API().SendMessage("Got a location: ```json\n"+tbb.PrintAsJson(tzi, true)+"\n```", m.From.ID, &echotron.MessageOptions{ParseMode: echotron.MarkdownV2})
+		return nil
 	}
 	_, _ = h.Bot().API().SendMessage("Echo: "+m.Text, m.From.ID, nil)
 	return nil
@@ -30,8 +32,9 @@ func (h *myBotHandler) HandleMessage(m echotron.Message) tbb.StateFn {
 func main() {
 	// Load your Telegram bot config (@see example.config.yml)
 	cfg := tbb.LoadConfig("config.yml")
+
 	app := tbb.NewApp(
-		tbb.WithConfig(&cfg),
+		tbb.WithConfig(cfg),
 		tbb.WithCommands([]tbb.Command{
 			{
 				Name:        "/start",
