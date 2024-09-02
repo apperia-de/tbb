@@ -1,17 +1,11 @@
 package tbb
 
 import (
-	"embed"
 	"encoding/json"
 	"github.com/NicoNex/echotron/v3"
-	timezone "github.com/evanoberholster/timezoneLookup/v2"
 	"log/slog"
-	"os"
 	"strings"
 )
-
-//go:embed assets/timezone.data
-var efs embed.FS
 
 type InlineKeyboardButton struct {
 	Text string `json:"text"`
@@ -94,40 +88,4 @@ func getLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-func loadTimezoneCache() *timezone.Timezonecache {
-	var (
-		f, tempF *os.File
-		tzc      timezone.Timezonecache
-		data     []byte
-		err      error
-	)
-
-	tempF, err = os.CreateTemp("", "timezone.data")
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(tempF.Name())
-
-	data, err = efs.ReadFile("assets/timezone.data")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = tempF.Write(data)
-	if err != nil {
-		panic(err)
-	}
-
-	f, err = os.Open(tempF.Name())
-	if err != nil {
-		panic(err)
-	}
-
-	if err = tzc.Load(f); err != nil {
-		panic(err)
-	}
-
-	return &tzc
 }

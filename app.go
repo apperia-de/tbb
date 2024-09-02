@@ -39,7 +39,7 @@ func NewApp(opts ...AppOption) *App {
 
 	app := &App{
 		ctx:    context.Background(),
-		cmdReg: nil,
+		cmdReg: CommandRegistry{},
 		hFn:    func() UpdateHandler { return &DefaultUpdateHandler{} },
 		logger: logger,
 		tzc:    loadTimezoneCache(),
@@ -127,75 +127,19 @@ func (a *App) Config() *Config {
 	return a.cfg
 }
 
-// DB returns the database handle for the bot, so that the database can easily be adjusted and extended.
+// DB returns the database handle for the bot so that the database can easily be adjusted and extended.
 func (a *App) DB() *DB {
 	return a.db
 }
 
-type TZInfo struct {
-	Latitude  float64
-	Longitude float64
-	Location  string
-	ZoneName  string
-	IsDST     bool
-	Offset    int
-}
-
-// GetTimezoneInfo returns the time zone info for the given coordinates if available.
-func (a *App) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
-	res, err := a.tzc.Search(lat, lon)
-	if err != nil {
-		return nil, err
-	}
-	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon))
-
-	tzi := TZInfo{
-		Latitude:  lat,
-		Longitude: lon,
-		Location:  res.Name,
-	}
-
-	loc, err := time.LoadLocation(tzi.Location)
-	if err != nil {
-		return nil, err
-	}
-	// Declaring t for Zone method
-	t := time.Now().In(loc)
-
-	// Calling Zone() method
-	tzi.ZoneName, tzi.Offset = t.Zone()
-	tzi.IsDST = t.IsDST()
-	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon), "time zone info", tzi)
-
-	return &tzi, nil
-}
-
-// GetCurrentTimeOffset returns the time offset in seconds for the given coordinates
-// or zero if no time zone info may be obtained from coordinates.
-func (a *App) GetCurrentTimeOffset(lat, lon float64) int {
-	tzi, err := a.GetTimezoneInfo(lat, lon)
-	if err != nil {
-		a.logger.Error(err.Error())
-		return 0
-	}
-	return tzi.Offset
-}
-
 // SetBotCommands registers the given command list for your Telegram bot.
+// Will delete registered bot commands if parameter bc is nil.
 func (a *App) SetBotCommands(bc []echotron.BotCommand) error {
 	if bc == nil {
-		bc = []echotron.BotCommand{
-			{Command: "/delete", Description: "Lösche dein Profil"},
-			{Command: "/help", Description: "Erklärungen zur Verwendung"},
-		}
+		_, err := a.api.DeleteMyCommands(nil)
+		return err
 	}
 	_, err := a.api.SetMyCommands(nil, bc...)
-	return err
-}
-
-// DeleteBotCommands removes the registered Telegram commands from your bot.
-func (a *App) DeleteBotCommands() error {
-	_, err := a.api.DeleteMyCommands(nil)
 	return err
 }
 

@@ -84,32 +84,18 @@ func (b *Bot) DeleteMessage(q *echotron.CallbackQuery) {
 	_, _ = b.app.API().DeleteMessage(b.chatID, q.Message.ID)
 }
 
-// EnableUser enables current user and updates the database
+// EnableUser enables the current user and updates the database
 func (b *Bot) EnableUser() {
 	b.user.UserInfo.IsActive = true
 	b.user.UserInfo.Status = memberStatusJoin
 	b.app.DB().Save(b.user)
 }
 
-// DisableUser disable current user and updates the database
+// DisableUser disable the current user and update the database
 func (b *Bot) DisableUser() {
 	b.user.UserInfo.IsActive = false
 	b.user.UserInfo.Status = memberStatusLeave
 	b.app.DB().Save(b.user)
-}
-
-// GetUsernameFromMessage returns the Firstname or Username from the telegram user of the given message
-func (b *Bot) GetUsernameFromMessage(m *echotron.Message) string {
-	switch {
-	case m == nil:
-		return ""
-	case m.From.FirstName != "":
-		return m.From.FirstName
-	case m.From.Username != "":
-		return m.From.Username
-	default:
-		return ""
-	}
 }
 
 // GetUsersTimezoneOffset returns the time zone offset in seconds if the user has already provided coordinates.

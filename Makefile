@@ -12,6 +12,9 @@ build-timezone-data:
 
 .PHONY: test
 test:
+	go test ./...
+
+test-verbose:
 	go test -v ./...
 
 test-versioning:
@@ -22,7 +25,7 @@ test-versioning:
 	@echo Next major version: v$(NEXT_MAJOR_VERSION)
 
 update-all:
-	go get -u 	./...
+	go get -u ./...
 	go mod tidy
 
 lint:

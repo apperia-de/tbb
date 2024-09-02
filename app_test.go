@@ -38,17 +38,15 @@ func TestNewApp(t *testing.T) {
 
 		customCfg := tbb.LoadCustomConfig[CustomConfig]("test/data/test.custom.config.yml")
 
-		//t.Logf("%#v\n", expected)
-		//t.Logf("%#v\n", customCfg.CustomData)
-
+		app := tbb.NewApp(tbb.WithConfig(customCfg))
+		assert.NotNil(t, app)
 		assert.Equal(t, expected, customCfg.CustomData)
 	})
 }
 
 func ExampleNewApp() {
 	type CustomConfig struct {
-		Version string `yaml:"version"`
-
+		Version   string   `yaml:"version"`
 		Blacklist []string `yaml:"blacklist"`
 	}
 
