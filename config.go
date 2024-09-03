@@ -11,8 +11,8 @@ const (
 
 type Config struct {
 	Admin struct {
-		BotToken string `yaml:"botToken"`
-		ChatID   int64  `yaml:"chatID"`
+		BotToken string  `yaml:"botToken"` // Telegram bot token for an admin bot to use when sending messages
+		ChatID   []int64 `yaml:"chatID"`   // Telegram chat IDs of admins
 	} `yaml:"admin"`
 	Database struct {
 		Type     string `yaml:"type"`     // one of sqlite, mysql, postgres
