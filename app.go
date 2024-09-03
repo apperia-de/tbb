@@ -32,16 +32,11 @@ type AppOption func(*App)
 // NewApp creates a new Telegram bot based on the given configuration.
 // It uses functional options for configuration.
 func NewApp(opts ...AppOption) *App {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelInfo,
-	}))
-
 	app := &App{
 		ctx:    context.Background(),
 		cmdReg: CommandRegistry{},
 		hFn:    func() UpdateHandler { return &DefaultUpdateHandler{} },
-		logger: logger,
+		logger: nil,
 		tzc:    loadTimezoneCache(),
 	}
 
@@ -52,6 +47,13 @@ func NewApp(opts ...AppOption) *App {
 
 	if app.cfg == nil {
 		panic("app config is missing")
+	}
+
+	if app.logger == nil {
+		app.logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     getLogLevel(app.cfg.LogLevel),
+		}))
 	}
 
 	app.api = echotron.NewAPI(app.cfg.Telegram.BotToken)
