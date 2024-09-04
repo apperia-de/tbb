@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/NicoNex/echotron/v3 v3.37.0
+	github.com/dusted-go/logging v1.3.0
 	github.com/evanoberholster/timezoneLookup/v2 v2.0.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/stretchr/testify v1.9.0

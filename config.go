@@ -14,13 +14,14 @@ type Config struct {
 		BotToken string  `yaml:"botToken"` // Telegram bot token for an admin bot to use when sending messages
 		ChatID   []int64 `yaml:"chatID"`   // Telegram chat IDs of admins
 	} `yaml:"admin"`
-	Database struct {
+	AllowedChatIDs []int64 `yaml:"allowedChatIDs"` // If set, only the specified chatIDs are allowed to use the bot. If not set or empty, all chat ids are allowed to use the bot.
+	Database       struct {
 		Type     string `yaml:"type"`     // one of sqlite, mysql, postgres
 		DSN      string `yaml:"dsn"`      // in the case of mysql or postgres
 		Filename string `yaml:"filename"` // in the case of sqlite
 	} `yaml:"database"`
 	Debug             bool   `yaml:"debug"`
-	BotSessionTimeout int    `yaml:"botSessionTimeout"` // Timeout in minutes after which the bot instance will be deleted in order to save memory. Defaults to 15 minutes.
+	BotSessionTimeout int    `yaml:"botSessionTimeout"` // Timeout in minutes, after which the bot instance will be deleted to save memory. Defaults to 15 minutes.
 	LogLevel          string `yaml:"logLevel"`
 	Telegram          struct {
 		BotToken string `yaml:"botToken"`

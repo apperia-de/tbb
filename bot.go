@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 )
@@ -34,13 +35,12 @@ type Bot struct {
 	dTimer  *time.Timer // Destruction timer
 }
 
-type BotOption func(*Bot)
-
 // ChatID returns the user chatID
 func (b *Bot) ChatID() int64 {
 	return b.chatID
 }
 
+// Command returns the last command that was sent by the user
 func (b *Bot) Command() *Command {
 	return b.cmd
 }
@@ -70,6 +70,7 @@ func (b *Bot) DB() *DB {
 	return b.app.DB()
 }
 
+// IsUserActive returns true if the user is active or false otherwise
 func (b *Bot) IsUserActive() bool {
 	return b.user.UserInfo.IsActive
 }
@@ -114,7 +115,7 @@ func (b *Bot) Update(u *echotron.Update) {
 
 	b.resetSessionTimeout()
 
-	// Check if we need to update user information from telegram
+	// Check if we need to update user information from Telegram
 	if time.Since(b.user.UpdatedAt).Hours() > 24*7 {
 		go func() {
 			b.updateUser(u)
@@ -123,6 +124,14 @@ func (b *Bot) Update(u *echotron.Update) {
 			}
 			b.app.DB().Save(b.user)
 		}()
+	}
+
+	// Allow only users from AllowedChatIDs to use the bot
+	if len(b.app.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.app.cfg.AllowedChatIDs, u.ChatID()) {
+		if b.user.UserInfo.IsActive {
+			b.DisableUser()
+		}
+		return
 	}
 
 	// Commands always take the highest precedence
@@ -140,7 +149,7 @@ func (b *Bot) Update(u *echotron.Update) {
 		return
 	}
 
-	// If state is nil, we set the initial state in relation to the received update
+	// If bot state is nil, we set the initial state in relation to the received update
 	if b.state == nil {
 		b.cmd = nil
 		b.state = b.handleInitialState(u)

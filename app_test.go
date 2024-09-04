@@ -3,7 +3,6 @@ package tbb_test
 import (
 	"github.com/apperia-de/tbb"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"testing"
 )
 
@@ -14,7 +13,6 @@ func TestNewApp(t *testing.T) {
 		if app == nil {
 			t.Error("should return a new app")
 		}
-		defer os.Remove("test/data/test.app.db")
 	})
 
 	t.Run("should panic create new app without config", func(t *testing.T) {
