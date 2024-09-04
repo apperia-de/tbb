@@ -131,6 +131,7 @@ func (b *Bot) Update(u *echotron.Update) {
 		if b.user.UserInfo.IsActive {
 			b.DisableUser()
 		}
+		b.logger.Info("Denied access for user", "user", PrintAsJson(b.User(), false), "update", PrintAsJson(u, false))
 		return
 	}
 

@@ -12,7 +12,7 @@ const (
 type Config struct {
 	Admin struct {
 		BotToken string  `yaml:"botToken"` // Telegram bot token for an admin bot to use when sending messages
-		ChatID   []int64 `yaml:"chatID"`   // Telegram chat IDs of admins
+		ChatIDs  []int64 `yaml:"chatIDs"`  // Telegram chat IDs of admins
 	} `yaml:"admin"`
 	AllowedChatIDs []int64 `yaml:"allowedChatIDs"` // If set, only the specified chatIDs are allowed to use the bot. If not set or empty, all chat ids are allowed to use the bot.
 	Database       struct {
@@ -52,7 +52,6 @@ func LoadCustomConfig[T any](filename string) *Config {
 
 func loadConfig(filename string) *Config {
 	var cfg Config
-
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		panic(err)
@@ -61,15 +60,12 @@ func loadConfig(filename string) *Config {
 	if err != nil {
 		panic(err)
 	}
-
 	if cfg.Telegram.BotToken == "" {
 		panic("missing telegram bot token")
 	}
-
 	if cfg.Database.Filename == "" {
 		panic("missing database")
 	}
-
 	if cfg.BotSessionTimeout == 0 {
 		cfg.BotSessionTimeout = defaultSessionTimout
 	}
