@@ -2,10 +2,12 @@ package command
 
 import "github.com/apperia-de/tbb"
 
-type Disable tbb.DefaultCommandHandler
+type Disable struct {
+	tbb.DefaultCommandHandler
+}
 
-func (c *Disable) Handle(bot *tbb.Bot) tbb.StateFn {
-	_, _ = bot.API().SendMessage("You won't receive any updates anymore. Send /enable to enable updates again.", bot.ChatID(), nil)
-	bot.DisableUser()
+func (c *Disable) Handle() tbb.StateFn {
+	_, _ = c.Bot().API().SendMessage("You won't receive any updates anymore. Send /enable to enable updates again.", c.Bot().ChatID(), nil)
+	c.Bot().DisableUser()
 	return nil
 }

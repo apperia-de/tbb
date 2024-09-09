@@ -139,7 +139,8 @@ func (b *Bot) Update(u *echotron.Update) {
 	if cmd := b.getCommand(u); cmd != nil {
 		b.cmd = cmd
 		if b.cmd.Handler != nil {
-			b.state = b.cmd.Handler.Handle(b)
+			b.cmd.Handler.SetBot(b)
+			b.state = b.cmd.Handler.Handle()
 		}
 		return
 	}

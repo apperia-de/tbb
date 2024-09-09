@@ -17,19 +17,26 @@ type Command struct {
 	Handler     CommandHandler
 }
 
-type CommandFunc func(*Bot, Command, *echotron.Update) StateFn
-
 type CommandHandler interface {
-	Handle(*Bot) StateFn
+	Bot() *Bot
+	SetBot(*Bot)
+	Handle() StateFn
 }
 
 type DefaultCommandHandler struct {
-	Bot *Bot
+	bot *Bot
 }
 
-func (h *DefaultCommandHandler) Handle(bot *Bot) StateFn {
-	h.Bot = bot
-	h.Bot.logger.Info("Command received!", "command", bot.cmd.Name, "params", fmt.Sprintf("[%s]", strings.Join(bot.cmd.Params, ",")))
+func (h *DefaultCommandHandler) Bot() *Bot {
+	return h.bot
+}
+
+func (h *DefaultCommandHandler) SetBot(bot *Bot) {
+	h.bot = bot
+}
+
+func (h *DefaultCommandHandler) Handle() StateFn {
+	h.bot.logger.Info("Command received!", "command", h.bot.cmd.Name, "params", fmt.Sprintf("[%s]", strings.Join(h.bot.cmd.Params, ",")))
 	return nil
 }
 
@@ -57,91 +64,91 @@ type DefaultUpdateHandler struct {
 	bot *Bot
 }
 
-func (d *DefaultUpdateHandler) Bot() *Bot {
-	return d.bot
+func (h *DefaultUpdateHandler) Bot() *Bot {
+	return h.bot
 }
 
-func (d *DefaultUpdateHandler) SetBot(bot *Bot) {
-	d.bot = bot
+func (h *DefaultUpdateHandler) SetBot(bot *Bot) {
+	h.bot = bot
 }
 
-func (d *DefaultUpdateHandler) HandleMessage(m echotron.Message) StateFn {
-	d.bot.Log().Info("Method: HandleMessage", "Message", d.printAsJson(m))
+func (h *DefaultUpdateHandler) HandleMessage(m echotron.Message) StateFn {
+	h.bot.Log().Info("Method: HandleMessage", "Message", h.printAsJson(m))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleEditedMessage(m echotron.Message) StateFn {
-	d.bot.Log().Info("Method: HandleEditedMessage", "Message", d.printAsJson(m))
+func (h *DefaultUpdateHandler) HandleEditedMessage(m echotron.Message) StateFn {
+	h.bot.Log().Info("Method: HandleEditedMessage", "Message", h.printAsJson(m))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleChannelPost(m echotron.Message) StateFn {
-	d.bot.Log().Info("Method: HandleChannelPost", "Message", d.printAsJson(m))
+func (h *DefaultUpdateHandler) HandleChannelPost(m echotron.Message) StateFn {
+	h.bot.Log().Info("Method: HandleChannelPost", "Message", h.printAsJson(m))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleEditedChannelPost(m echotron.Message) StateFn {
-	d.bot.Log().Info("Method: HandleEditedChannelPost", "Message", d.printAsJson(m))
+func (h *DefaultUpdateHandler) HandleEditedChannelPost(m echotron.Message) StateFn {
+	h.bot.Log().Info("Method: HandleEditedChannelPost", "Message", h.printAsJson(m))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleInlineQuery(i echotron.InlineQuery) StateFn {
-	d.bot.Log().Info("Method: HandleInlineQuery", "InlineQuery", d.printAsJson(i))
+func (h *DefaultUpdateHandler) HandleInlineQuery(i echotron.InlineQuery) StateFn {
+	h.bot.Log().Info("Method: HandleInlineQuery", "InlineQuery", h.printAsJson(i))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleChosenInlineResult(c echotron.ChosenInlineResult) StateFn {
-	d.bot.Log().Info("Method: HandleChosenInlineResult", "ChosenInlineResult", d.printAsJson(c))
+func (h *DefaultUpdateHandler) HandleChosenInlineResult(c echotron.ChosenInlineResult) StateFn {
+	h.bot.Log().Info("Method: HandleChosenInlineResult", "ChosenInlineResult", h.printAsJson(c))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleCallbackQuery(c echotron.CallbackQuery) StateFn {
-	d.bot.Log().Info("Method: HandleCallbackQuery", "CallbackQuery", d.printAsJson(c))
+func (h *DefaultUpdateHandler) HandleCallbackQuery(c echotron.CallbackQuery) StateFn {
+	h.bot.Log().Info("Method: HandleCallbackQuery", "CallbackQuery", h.printAsJson(c))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleShippingQuery(s echotron.ShippingQuery) StateFn {
-	d.bot.Log().Info("Method: HandleShippingQuery", "ShippingQuery", d.printAsJson(s))
+func (h *DefaultUpdateHandler) HandleShippingQuery(s echotron.ShippingQuery) StateFn {
+	h.bot.Log().Info("Method: HandleShippingQuery", "ShippingQuery", h.printAsJson(s))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandlePreCheckoutQuery(p echotron.PreCheckoutQuery) StateFn {
-	d.bot.Log().Info("Method: HandlePreCheckoutQuery", "PreCheckoutQuery", d.printAsJson(p))
+func (h *DefaultUpdateHandler) HandlePreCheckoutQuery(p echotron.PreCheckoutQuery) StateFn {
+	h.bot.Log().Info("Method: HandlePreCheckoutQuery", "PreCheckoutQuery", h.printAsJson(p))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleChatMember(c echotron.ChatMemberUpdated) StateFn {
-	d.bot.Log().Info("Method: HandleChatMember", "ChatMemberUpdated", d.printAsJson(c))
+func (h *DefaultUpdateHandler) HandleChatMember(c echotron.ChatMemberUpdated) StateFn {
+	h.bot.Log().Info("Method: HandleChatMember", "ChatMemberUpdated", h.printAsJson(c))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleChatJoinRequest(c echotron.ChatJoinRequest) StateFn {
-	d.bot.Log().Info("Method: HandleChatJoinRequest", "ChatJoinRequest", d.printAsJson(c))
+func (h *DefaultUpdateHandler) HandleChatJoinRequest(c echotron.ChatJoinRequest) StateFn {
+	h.bot.Log().Info("Method: HandleChatJoinRequest", "ChatJoinRequest", h.printAsJson(c))
 	return nil
 }
 
-func (d *DefaultUpdateHandler) HandleMyChatMember(c echotron.ChatMemberUpdated) StateFn {
-	d.bot.Log().Info("Method: HandleMyChatMember", "ChatMemberUpdated", d.printAsJson(c))
+func (h *DefaultUpdateHandler) HandleMyChatMember(c echotron.ChatMemberUpdated) StateFn {
+	h.bot.Log().Info("Method: HandleMyChatMember", "ChatMemberUpdated", h.printAsJson(c))
 
 	status := c.NewChatMember.Status
 	switch status {
 	case memberStatusJoin:
 		// User unblocked the Bot
-		d.bot.Log().Info("Bot unblocked by user", "status", status, "user", d.Bot().user.Firstname)
-		d.Bot().EnableUser()
+		h.bot.Log().Info("Bot unblocked by user", "status", status, "user", h.bot.user.Firstname)
+		h.bot.EnableUser()
 	case memberStatusLeave:
 		// User blocked the Bot
-		d.bot.Log().Info("Bot blocked by user", "status", status, "user", d.Bot().user.Firstname)
-		d.Bot().DisableUser()
+		h.bot.Log().Info("Bot blocked by user", "status", status, "user", h.bot.user.Firstname)
+		h.bot.DisableUser()
 	default:
 		// Unknown
-		d.bot.Log().Info("MyChatMember.Status", "status", status, "user", c.From)
+		h.bot.Log().Info("MyChatMember.Status", "status", status, "user", c.From)
 	}
 
 	return nil
 }
 
-func (d *DefaultUpdateHandler) printAsJson(v any) string {
+func (h *DefaultUpdateHandler) printAsJson(v any) string {
 	var (
 		err     error
 		jsonStr []byte
@@ -149,7 +156,7 @@ func (d *DefaultUpdateHandler) printAsJson(v any) string {
 
 	jsonStr, err = json.Marshal(v)
 	if err != nil {
-		d.bot.Log().Error(err.Error())
+		h.bot.Log().Error(err.Error())
 	}
 
 	return string(jsonStr)

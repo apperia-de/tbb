@@ -6,13 +6,14 @@ import (
 	"github.com/apperia-de/tbb"
 )
 
-type Enable tbb.DefaultCommandHandler
+type Enable struct {
+	tbb.DefaultCommandHandler
+}
 
-func (c *Enable) Handle(bot *tbb.Bot) tbb.StateFn {
-	c.Bot = bot
-	c.Bot.EnableUser()
+func (c *Enable) Handle() tbb.StateFn {
+	c.Bot().EnableUser()
 
-	if c.Bot.User().UserInfo.ZoneName == "" {
+	if c.Bot().User().UserInfo.ZoneName == "" {
 		var buttons [][]echotron.InlineKeyboardButton
 		buttons = append(buttons, tbb.BuildInlineKeyboardButtonRow(
 			[]tbb.InlineKeyboardButton{
@@ -20,7 +21,7 @@ func (c *Enable) Handle(bot *tbb.Bot) tbb.StateFn {
 				{Text: "No", Data: ""},
 			}),
 		)
-		_, _ = c.Bot.API().SendMessage("I don't have your current time zone for messaging. Do you want to send me your current location, so that I can figure out your current timezone settings?", c.Bot.ChatID(), &echotron.MessageOptions{ReplyMarkup: &echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
+		_, _ = c.Bot().API().SendMessage("I don't have your current time zone for messaging. Do you want to send me your current location, so that I can figure out your current timezone settings?", c.Bot().ChatID(), &echotron.MessageOptions{ReplyMarkup: &echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
 		return c.awaitUserAnswer
 	}
 
@@ -31,9 +32,9 @@ func (c *Enable) Handle(bot *tbb.Bot) tbb.StateFn {
 			{Text: "No", Data: "update"},
 		}),
 	)
-	userInfo := c.Bot.User().UserInfo
-	_, _ = c.Bot.API().SendLocation(c.Bot.ChatID(), userInfo.Latitude, userInfo.Longitude, nil)
-	_, _ = c.Bot.API().SendMessage("Is this location still correct", c.Bot.ChatID(), &echotron.MessageOptions{ReplyMarkup: &echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
+	userInfo := c.Bot().User().UserInfo
+	_, _ = c.Bot().API().SendLocation(c.Bot().ChatID(), userInfo.Latitude, userInfo.Longitude, nil)
+	_, _ = c.Bot().API().SendMessage("Is this location still correct", c.Bot().ChatID(), &echotron.MessageOptions{ReplyMarkup: &echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
 	return c.awaitUserAnswer
 }
 
@@ -42,16 +43,16 @@ func (c *Enable) awaitUserAnswer(u *echotron.Update) (state tbb.StateFn) {
 		return c.awaitUserAnswer
 	}
 	answer := u.CallbackQuery.Data
-	c.Bot.Log().Info("Answer:" + answer)
+	c.Bot().Log().Info("Answer:" + answer)
 
 	switch answer {
 	case "update":
-		_, _ = c.Bot.API().SendMessage("Ok, so than please send me a valid location point", u.ChatID(), nil)
+		_, _ = c.Bot().API().SendMessage("Ok, so than please send me a valid location point", u.ChatID(), nil)
 		state = c.awaitUserLocation
 	case "keep":
-		_, _ = c.Bot.API().SendMessage(fmt.Sprintf("Ok, then I'll keep your current time zone (%s)", c.Bot.User().UserInfo.ZoneName), u.ChatID(), nil)
+		_, _ = c.Bot().API().SendMessage(fmt.Sprintf("Ok, then I'll keep your current time zone (%s)", c.Bot().User().UserInfo.ZoneName), u.ChatID(), nil)
 	default:
-		_, _ = c.Bot.API().SendMessage("Ok, than I will use UTC timezone for your timezone. Your account is now enabled.", c.Bot.ChatID(), nil)
+		_, _ = c.Bot().API().SendMessage("Ok, than I will use UTC timezone for your timezone. Your account is now enabled.", c.Bot().ChatID(), nil)
 	}
 
 	return state
@@ -59,27 +60,27 @@ func (c *Enable) awaitUserAnswer(u *echotron.Update) (state tbb.StateFn) {
 
 func (c *Enable) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 	if u.Message != nil && u.Message.Location == nil {
-		_, _ = c.Bot.API().SendMessage("Please send a valid location point", u.ChatID(), nil)
+		_, _ = c.Bot().API().SendMessage("Please send a valid location point", u.ChatID(), nil)
 		return c.awaitUserLocation
 	}
 
 	loc := *u.Message.Location
-	_, _ = c.Bot.API().SendMessage(fmt.Sprintf("I receive your location update: Latitude = %f | Longitude = %f.\nYour notifications are now enabled.", loc.Latitude, loc.Longitude), u.ChatID(), nil)
+	_, _ = c.Bot().API().SendMessage(fmt.Sprintf("I receive your location update: Latitude = %f | Longitude = %f.\nYour notifications are now enabled.", loc.Latitude, loc.Longitude), u.ChatID(), nil)
 
-	tzi, err := c.Bot.App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
+	tzi, err := c.Bot().App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
 	if err != nil {
-		c.Bot.Log().Error("Error getting timezone info", "error", err)
+		c.Bot().Log().Error("Error getting timezone info", "error", err)
 		return nil
 	}
 
-	user := c.Bot.User()
+	user := c.Bot().User()
 	user.UserInfo.Latitude = tzi.Latitude
 	user.UserInfo.Longitude = tzi.Longitude
 	user.UserInfo.Location = tzi.Location
 	user.UserInfo.ZoneName = tzi.ZoneName
 	user.UserInfo.IsDST = tzi.IsDST
 	user.UserInfo.TZOffset = &tzi.Offset
-	c.Bot.DB().Save(user)
+	c.Bot().DB().Save(user)
 
 	return nil
 }
