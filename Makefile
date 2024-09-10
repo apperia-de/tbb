@@ -28,7 +28,9 @@ test-versioning:
 	@echo Next minor version: v$(NEXT_MINOR_VERSION)
 	@echo Next major version: v$(NEXT_MAJOR_VERSION)
 
-update-all:
+update: update_internal lint test-verbose
+
+update_internal:
 	go get -u ./...
 	go mod tidy
 
