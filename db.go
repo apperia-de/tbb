@@ -26,6 +26,10 @@ func NewDB(cfg *Config, gormCfg *gorm.Config) *DB {
 		err    error
 	)
 
+	if gormCfg == nil {
+		gormCfg = &gorm.Config{}
+	}
+
 	switch cfg.Database.Type {
 	case DB_TYPE_SQLITE:
 		if cfg.Database.Filename == "" {
