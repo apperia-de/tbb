@@ -10,6 +10,7 @@ import (
 	"github.com/NicoNex/echotron/v3"
 	"github.com/apperia-de/tbb/pkg/model"
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
+	"gorm.io/gorm"
 	"log/slog"
 	"os"
 	"time"
@@ -56,14 +57,19 @@ func NewApp(opts ...AppOption) *App {
 		}))
 	}
 
+	app.db = NewDB(app.cfg, &gorm.Config{FullSaveAssociations: true})
 	app.api = echotron.NewAPI(app.cfg.Telegram.BotToken)
-	app.db = newDB(app.cfg, app.logger)
 	app.dsp = echotron.NewDispatcher(app.cfg.Telegram.BotToken, app.buildBot(app.hFn))
+
+	// Initialize database tables
+	if err := app.db.AutoMigrate(&model.User{}, &model.UserInfo{}, &model.UserPhoto{}); err != nil {
+		panic(err)
+	}
 
 	return app
 }
 
-// WithConfig is the only required option, because it provides the config for the app to function properly.
+// WithConfig is the only required option because it provides the config for the app to function properly.
 func WithConfig(cfg *Config) AppOption {
 	return func(app *App) {
 		app.cfg = cfg
