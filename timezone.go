@@ -57,7 +57,7 @@ func loadTimezoneCache() *timezone.Timezonecache {
 }
 
 // GetTimezoneInfo returns the time zone info for the given coordinates if available.
-func (a *App) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
+func (a *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
 	res, err := a.tzc.Search(lat, lon)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (a *App) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
 
 // GetCurrentTimeOffset returns the time offset in seconds for the given coordinates
 // or zero if no time zone info may be obtained from coordinates.
-func (a *App) GetCurrentTimeOffset(lat, lon float64) int {
+func (a *TBB) GetCurrentTimeOffset(lat, lon float64) int {
 	tzi, err := a.GetTimezoneInfo(lat, lon)
 	if err != nil {
 		a.logger.Error(err.Error())

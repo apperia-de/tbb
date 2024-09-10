@@ -11,7 +11,7 @@ func TestApp_GetTimezoneInfo(t *testing.T) {
 	t.Run("Get TimezoneInfo for valid coordinates", func(t *testing.T) {
 
 		cfg := tbb.LoadConfig("test/data/test.config.yml")
-		app := tbb.NewApp(tbb.WithConfig(cfg))
+		app := tbb.New(tbb.WithConfig(cfg))
 
 		tzi, err := app.GetTimezoneInfo(51.340847907357755, 12.377381803667586)
 		assert.NoError(t, err)
@@ -22,7 +22,7 @@ func TestApp_GetTimezoneInfo(t *testing.T) {
 
 	t.Run("Get TimezoneInfo for invalid coordinates", func(t *testing.T) {
 		cfg := tbb.LoadConfig("test/data/test.config.yml")
-		app := tbb.NewApp(tbb.WithConfig(cfg))
+		app := tbb.New(tbb.WithConfig(cfg))
 
 		tzi, err := app.GetTimezoneInfo(-125.123, 0)
 		assert.Nil(t, tzi)
@@ -32,7 +32,7 @@ func TestApp_GetTimezoneInfo(t *testing.T) {
 
 func TestApp_GetCurrentTimeOffset(t *testing.T) {
 	cfg := tbb.LoadConfig("test/data/test.config.yml")
-	app := tbb.NewApp(tbb.WithConfig(cfg))
+	app := tbb.New(tbb.WithConfig(cfg))
 
 	lat, lon := 51.340847907357755, 12.377381803667586
 	tzi, err := app.GetTimezoneInfo(lat, lon)

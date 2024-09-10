@@ -6,17 +6,17 @@ import (
 	"testing"
 )
 
-func TestNewApp(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Run("should create new app", func(t *testing.T) {
 		cfg := tbb.LoadConfig("test/data/test.config.yml")
-		app := tbb.NewApp(tbb.WithConfig(cfg))
+		app := tbb.New(tbb.WithConfig(cfg))
 		if app == nil {
 			t.Error("should return a new app")
 		}
 	})
 
 	t.Run("should panic create new app without config", func(t *testing.T) {
-		assert.Panics(t, func() { tbb.NewApp() })
+		assert.Panics(t, func() { tbb.New() })
 	})
 
 	t.Run("should create new app with custom config", func(t *testing.T) {
@@ -36,13 +36,13 @@ func TestNewApp(t *testing.T) {
 
 		customCfg := tbb.LoadCustomConfig[CustomConfig]("test/data/test.custom.config.yml")
 
-		app := tbb.NewApp(tbb.WithConfig(customCfg))
+		app := tbb.New(tbb.WithConfig(customCfg))
 		assert.NotNil(t, app)
 		assert.Equal(t, expected, customCfg.CustomData)
 	})
 }
 
-func ExampleNewApp() {
+func ExampleNew() {
 	type CustomConfig struct {
 		Version   string   `yaml:"version"`
 		Blacklist []string `yaml:"blacklist"`
@@ -50,6 +50,6 @@ func ExampleNewApp() {
 
 	cfg := tbb.LoadCustomConfig[CustomConfig]("config.yml")
 
-	app := tbb.NewApp(tbb.WithConfig(cfg))
+	app := tbb.New(tbb.WithConfig(cfg))
 	app.Start()
 }

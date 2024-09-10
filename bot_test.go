@@ -11,7 +11,7 @@ func TestBot_Update(t *testing.T) {
 	t.Run("All users are allowed to use the bot if AllowedChatIDs is nil or empty", func(t *testing.T) {
 		cfg := LoadConfig("test/data/test.config.yml")
 		cfg.AllowedChatIDs = []int64{}
-		app := NewApp(WithConfig(cfg))
+		app := New(WithConfig(cfg))
 		bot := app.newBot(99999999, app.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
 		u := &echotron.Update{
 			Message: &echotron.Message{
@@ -45,7 +45,7 @@ func TestBot_Update(t *testing.T) {
 				Handler:     &DefaultCommandHandler{},
 			},
 		}
-		app := NewApp(WithConfig(cfg), WithCommands(commands))
+		app := New(WithConfig(cfg), WithCommands(commands))
 		bot := app.newBot(99999999, app.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
 
 		u := &echotron.Update{
@@ -80,7 +80,7 @@ func TestBot_Update(t *testing.T) {
 				Handler:     &DefaultCommandHandler{},
 			},
 		}
-		app := NewApp(WithConfig(cfg), WithCommands(commands))
+		app := New(WithConfig(cfg), WithCommands(commands))
 		bot := app.newBot(99999999, app.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
 
 		u := &echotron.Update{

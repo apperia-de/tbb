@@ -36,8 +36,8 @@ import (
 func main() {
 	// Load your Telegram bot config (@see example.config.yml)
 	cfg := tbb.LoadConfig('config.yml')
-	app := tbb.NewApp(
-		tbb.WithConfig(&cfg),
+	app := tbb.New(
+		tbb.WithConfig(cfg),
 		tbb.WithCommands([]tbb.Command{
 			{
 				Name:        "/start",

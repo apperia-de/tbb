@@ -29,7 +29,7 @@ const (
 type StateFn func(*echotron.Update) StateFn
 
 type Bot struct {
-	app     *App
+	app     *TBB
 	chatID  int64
 	cmd     *Command
 	handler UpdateHandler
@@ -65,8 +65,8 @@ func (b *Bot) API() echotron.API {
 	return b.app.API()
 }
 
-// App returns the App reference
-func (b *Bot) App() *App {
+// TBB returns the TBB reference
+func (b *Bot) App() *TBB {
 	return b.app
 }
 

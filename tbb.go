@@ -12,11 +12,12 @@ import (
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 	"gorm.io/gorm"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 )
 
-type App struct {
+type TBB struct {
 	db     *DB
 	dsp    *echotron.Dispatcher
 	ctx    context.Context
@@ -26,14 +27,15 @@ type App struct {
 	hFn    UpdateHandlerFn
 	api    echotron.API // Telegram api
 	tzc    *timezone.Timezonecache
+	srv    *http.Server
 }
 
-type AppOption func(*App)
+type Option func(*TBB)
 
-// NewApp creates a new Telegram bot based on the given configuration.
+// New creates a new Telegram bot based on the given configuration.
 // It uses functional options for configuration.
-func NewApp(opts ...AppOption) *App {
-	app := &App{
+func New(opts ...Option) *TBB {
+	app := &TBB{
 		ctx:    context.Background(),
 		cmdReg: CommandRegistry{},
 		hFn:    func() UpdateHandler { return &DefaultUpdateHandler{} },
@@ -60,6 +62,9 @@ func NewApp(opts ...AppOption) *App {
 	app.db = NewDB(app.cfg, &gorm.Config{FullSaveAssociations: true})
 	app.api = echotron.NewAPI(app.cfg.Telegram.BotToken)
 	app.dsp = echotron.NewDispatcher(app.cfg.Telegram.BotToken, app.buildBot(app.hFn))
+	if app.srv != nil {
+		app.dsp.SetHTTPServer(app.srv)
+	}
 
 	// Initialize database tables
 	if err := app.db.AutoMigrate(&model.User{}, &model.UserInfo{}, &model.UserPhoto{}); err != nil {
@@ -70,8 +75,8 @@ func NewApp(opts ...AppOption) *App {
 }
 
 // WithConfig is the only required option because it provides the config for the app to function properly.
-func WithConfig(cfg *Config) AppOption {
-	return func(app *App) {
+func WithConfig(cfg *Config) Option {
+	return func(app *TBB) {
 		app.cfg = cfg
 	}
 }
@@ -80,41 +85,48 @@ func WithConfig(cfg *Config) AppOption {
 // Bot commands always start with a / like /start and a Handler, which implements the CommandHandler interface.
 // If you want a command to be available in the command list on Telegram,
 // the provided Command must contain a Description.
-func WithCommands(commands []Command) AppOption {
-	return func(app *App) {
+func WithCommands(commands []Command) Option {
+	return func(app *TBB) {
 		app.cmdReg = buildCommandRegistry(commands)
 	}
 }
 
 // WithHandlerFunc option can be used to override the default UpdateHandlerFn for custom echotron.Update message handling.
-func WithHandlerFunc(hFn UpdateHandlerFn) AppOption {
-	return func(app *App) {
+func WithHandlerFunc(hFn UpdateHandlerFn) Option {
+	return func(app *TBB) {
 		app.hFn = hFn
 	}
 }
 
 // WithLogger option can be used to override the default logger with a custom one.
-func WithLogger(l *slog.Logger) AppOption {
-	return func(app *App) {
+func WithLogger(l *slog.Logger) Option {
+	return func(app *TBB) {
 		app.logger = l
 	}
 }
 
+// WithServer option can be used add a custom http.Server to the dispatcher
+func WithServer(s *http.Server) Option {
+	return func(app *TBB) {
+		app.srv = s
+	}
+}
+
 // Start starts the Telegram bot server in poll mode
-func (a *App) Start() {
+func (a *TBB) Start() {
 	if err := a.SetBotCommands(a.buildTelegramCommands()); err != nil {
 		a.logger.Error("Cannot set bot commands!")
-		os.Exit(1)
+		panic(err)
 	}
 	a.logger.Info("Start dispatcher...")
 	a.logger.Error(a.dsp.Poll().Error())
 }
 
 // StartWithWebhook starts the Telegram bot server with a given webhook url.
-func (a *App) StartWithWebhook(webhookURL string) {
+func (a *TBB) StartWithWebhook(webhookURL string) {
 	if err := a.SetBotCommands(a.buildTelegramCommands()); err != nil {
 		a.logger.Error("Cannot set bot commands!")
-		os.Exit(1)
+		panic(err)
 	}
 	a.logger.Info("Start dispatcher...")
 
@@ -126,23 +138,23 @@ func (a *App) StartWithWebhook(webhookURL string) {
 }
 
 // API returns the reference to the echotron.API.
-func (a *App) API() echotron.API {
+func (a *TBB) API() echotron.API {
 	return a.api
 }
 
 // Config returns the config
-func (a *App) Config() *Config {
+func (a *TBB) Config() *Config {
 	return a.cfg
 }
 
 // DB returns the database handle for the bot so that the database can easily be adjusted and extended.
-func (a *App) DB() *DB {
+func (a *TBB) DB() *DB {
 	return a.db
 }
 
 // SetBotCommands registers the given command list for your Telegram bot.
 // Will delete registered bot commands if parameter bc is nil.
-func (a *App) SetBotCommands(bc []echotron.BotCommand) error {
+func (a *TBB) SetBotCommands(bc []echotron.BotCommand) error {
 	if bc == nil {
 		_, err := a.api.DeleteMyCommands(nil)
 		return err
@@ -151,7 +163,7 @@ func (a *App) SetBotCommands(bc []echotron.BotCommand) error {
 	return err
 }
 
-func (a *App) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
+func (a *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	b := &Bot{
 		app:    a,
 		chatID: chatID,
@@ -180,13 +192,13 @@ func (a *App) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	return b
 }
 
-func (a *App) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
+func (a *TBB) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
 	return func(chatId int64) echotron.Bot {
 		return a.newBot(chatId, a.logger, h)
 	}
 }
 
-func (a *App) getRegistryCommand(name string) *Command {
+func (a *TBB) getRegistryCommand(name string) *Command {
 	c, ok := a.cmdReg[name]
 	if !ok {
 		return nil
@@ -194,7 +206,7 @@ func (a *App) getRegistryCommand(name string) *Command {
 	return &c
 }
 
-func (a *App) buildTelegramCommands() []echotron.BotCommand {
+func (a *TBB) buildTelegramCommands() []echotron.BotCommand {
 	var bc []echotron.BotCommand
 	for _, c := range a.cmdReg {
 		if c.Name != "" && c.Description != "" {
