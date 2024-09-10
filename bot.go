@@ -14,12 +14,16 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	memberStatusJoin  = "member"
 	memberStatusLeave = "kicked"
+
+	// We only try to update user data if more than 24 hours have passed since the last update.
+	updateDuration = time.Hour * 24
 )
 
 type StateFn func(*echotron.Update) StateFn
@@ -33,6 +37,7 @@ type Bot struct {
 	user    *model.User
 	logger  *slog.Logger
 	dTimer  *time.Timer // Destruction timer
+	mu      sync.Mutex
 }
 
 // ChatID returns the user chatID
@@ -87,6 +92,8 @@ func (b *Bot) DeleteMessage(q *echotron.CallbackQuery) {
 
 // EnableUser enables the current user and updates the database
 func (b *Bot) EnableUser() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.user.UserInfo.IsActive = true
 	b.user.UserInfo.Status = memberStatusJoin
 	b.app.DB().Save(b.user)
@@ -94,6 +101,8 @@ func (b *Bot) EnableUser() {
 
 // DisableUser disable the current user and update the database
 func (b *Bot) DisableUser() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.user.UserInfo.IsActive = false
 	b.user.UserInfo.Status = memberStatusLeave
 	b.app.DB().Save(b.user)
@@ -115,16 +124,8 @@ func (b *Bot) Update(u *echotron.Update) {
 
 	b.resetSessionTimeout()
 
-	// Check if we need to update user information from Telegram
-	if time.Since(b.user.UpdatedAt).Hours() > 24*7 {
-		go func() {
-			b.updateUser(u)
-			if err := b.updateUserPhoto(); err != nil {
-				b.Log().Error(err.Error())
-			}
-			b.app.DB().Save(b.user)
-		}()
-	}
+	// Check asynchronously if we need to update user information from Telegram
+	go b.updateUserData(u, updateDuration)
 
 	// Allow only users from AllowedChatIDs to use the bot
 	if len(b.app.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.app.cfg.AllowedChatIDs, u.ChatID()) {
@@ -235,14 +236,54 @@ func (b *Bot) getCommand(u *echotron.Update) *Command {
 	return nil
 }
 
-func (b *Bot) updateUser(u *echotron.Update) {
-	var user = GetUserFromUpdate(u)
+// updateUser updates the user infos with the current user data from Telegram
+func (b *Bot) updateUser(u *echotron.Update) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	var (
+		user = GetUserFromUpdate(u)
+		err  error
+	)
+
 	b.user.Firstname = user.FirstName
 	b.user.Lastname = user.LastName
 	b.user.Username = user.Username
+	b.user.LanguageCode = user.LanguageCode
 	b.user.IsBot = user.IsBot
 	b.user.IsPremium = user.IsPremium
-	b.user.LanguageCode = user.LanguageCode
+	b.user.AddedToAttachmentMenu = user.AddedToAttachmentMenu
+	b.user.CanJoinGroups = user.CanJoinGroups
+	b.user.CanReadAllGroupMessages = user.CanReadAllGroupMessages
+	b.user.SupportsInlineQueries = user.SupportsInlineQueries
+	b.user.CanConnectToBusiness = user.CanConnectToBusiness
+	b.user.HasMainWebApp = user.HasMainWebApp
+
+	if b.user.UserPhoto, err = b.fetchCurrentUserPhoto(); err != nil {
+		// Warn if a user photo cannot be updated but proceed anyway
+		b.Log().Warn(err.Error())
+	}
+
+	return b.app.DB().Save(b.user).Error
+}
+
+// updateUserData updates the DB user data with data from Telegram update only if the
+// chatType is "private" and more than dur time has passed since the last update.
+func (b *Bot) updateUserData(u *echotron.Update, dur time.Duration) {
+	// Only private user chats will be saved to the database because
+	// we don't want to save channel or group infos as users in the database.
+	if GetChatTypeFromUpdate(u) != ChatTypePrivate {
+		return
+	}
+
+	// We only update user data in the database if more than dur seconds have elapsed.
+	if time.Since(b.user.UpdatedAt) < dur {
+		return
+	}
+
+	if err := b.updateUser(u); err != nil {
+		b.Log().Error(err.Error())
+	}
 }
 
 func (b *Bot) destruct() {
@@ -250,20 +291,23 @@ func (b *Bot) destruct() {
 	b.logger.Info(fmt.Sprintf("Deleted bot instance with ChatID=%d", b.chatID))
 }
 
-func (b *Bot) updateUserPhoto() error {
+// fetchCurrentUserPhoto tries to update the current users photo with the data from Telegram
+func (b *Bot) fetchCurrentUserPhoto() (*model.UserPhoto, error) {
+	userPhoto := &model.UserPhoto{}
+
 	res, err := b.app.api.GetUserProfilePhotos(b.user.ChatID, &echotron.UserProfileOptions{Offset: 0, Limit: 1})
 	if err != nil {
-		return err
+		return userPhoto, err
 	}
 
 	if !res.Ok {
-		return errors.New("could not get user profile")
+		return userPhoto, errors.New("could not get user profile")
 	}
 
 	b.logger.Debug("GetUserProfilePhotos request successful!", "totalPhotos", res.Result.TotalCount)
 
 	if len(res.Result.Photos) == 0 {
-		return nil
+		return userPhoto, nil
 	}
 
 	newestPhotoSizes := res.Result.Photos[0]
@@ -271,22 +315,24 @@ func (b *Bot) updateUserPhoto() error {
 
 	fileID, err := b.app.api.GetFile(biggestPhotoSize.FileID)
 	if err != nil {
-		return err
+		return userPhoto, err
 	}
 
 	photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.app.cfg.Telegram.BotToken, fileID.Result.FilePath)
 	b.logger.Debug(fileID.Result.FilePath)
 	fileRes, err := http.Get(photoURL)
 	if err != nil {
-		return err
+		return userPhoto, err
 	}
 
 	data, err := io.ReadAll(fileRes.Body)
 	if err != nil {
-		return err
+		return userPhoto, err
 	}
 
-	b.user.UserPhoto = &model.UserPhoto{
+	b.logger.Info("Updated user photo", "userID", b.user.ID)
+
+	userPhoto = &model.UserPhoto{
 		UserID:       b.user.ID,
 		FileID:       biggestPhotoSize.FileID,
 		FileUniqueID: biggestPhotoSize.FileUniqueID,
@@ -297,7 +343,5 @@ func (b *Bot) updateUserPhoto() error {
 		Height:       biggestPhotoSize.Height,
 	}
 
-	b.logger.Info("Updated user photo", "user", b.user)
-
-	return nil
+	return userPhoto, nil
 }

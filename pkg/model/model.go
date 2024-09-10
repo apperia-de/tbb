@@ -5,18 +5,24 @@ import (
 )
 
 type User struct {
-	ID           uint64     `gorm:"primaryKey" json:"-"`
-	Username     string     `json:"username"`
-	Firstname    string     `json:"firstname"`
-	Lastname     string     `json:"lastname"`
-	IsBot        bool       `json:"isBot"`                // True if user is itself a Bot
-	ChatID       int64      `gorm:"unique" json:"chatID"` // Telegram chatID of the user
-	LanguageCode string     `json:"language_code"`        // Language code of the user
-	IsPremium    bool       `json:"isPremium"`            // True, if this user is a Telegram Premium user
-	UserInfo     *UserInfo  `json:"userInfo,omitempty"`
-	UserPhoto    *UserPhoto `json:"-"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                      uint64     `gorm:"primaryKey" json:"-"`
+	Username                string     `json:"username"`
+	Firstname               string     `json:"firstname"`
+	Lastname                string     `json:"lastname"`
+	ChatID                  int64      `gorm:"unique" json:"chatID"`    // Telegram chatID of the user
+	LanguageCode            string     `json:"language_code,omitempty"` // Language code of the user
+	IsBot                   bool       `json:"is_bot"`                  // True if the user is itself a Bot
+	IsPremium               bool       `json:"is_premium,omitempty"`    // True, if this user is a Telegram Premium user
+	AddedToAttachmentMenu   bool       `json:"added_to_attachment_menu,omitempty"`
+	CanJoinGroups           bool       `json:"can_join_groups,omitempty"`
+	CanReadAllGroupMessages bool       `json:"can_read_all_group_messages,omitempty"`
+	SupportsInlineQueries   bool       `json:"supports_inline_queries,omitempty"`
+	CanConnectToBusiness    bool       `json:"can_connect_to_business,omitempty"`
+	HasMainWebApp           bool       `json:"has_main_web_app,omitempty"`
+	UserInfo                *UserInfo  `json:"user_info,omitempty"`
+	UserPhoto               *UserPhoto `json:"-"`
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type UserInfo struct {

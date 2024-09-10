@@ -7,6 +7,16 @@ import (
 	"strings"
 )
 
+const (
+	ChatTypePrivate    ChatType = "private"
+	ChatTypeChannel    ChatType = "channel"
+	ChatTypeGroup      ChatType = "group"
+	ChatTypeSuperGroup ChatType = "supergroup"
+	ChatTypeUnknown    ChatType = "unknown"
+)
+
+type ChatType string
+
 type InlineKeyboardButton struct {
 	Text string `json:"text"`
 	Data string `json:"data"`
@@ -42,6 +52,39 @@ func GetUserFromUpdate(u *echotron.Update) echotron.User {
 	default:
 		return echotron.User{ID: u.ChatID()}
 	}
+}
+
+// GetChatTypeFromUpdate returns the ChatType from a given echotron.Update
+func GetChatTypeFromUpdate(u *echotron.Update) ChatType {
+	convertToChatType := func(input string) ChatType {
+		switch ChatType(input) {
+		case ChatTypeChannel, ChatTypeGroup, ChatTypeSuperGroup, ChatTypePrivate:
+			return ChatType(input)
+		default:
+			return ChatTypeUnknown
+		}
+	}
+
+	var ct = ChatTypeUnknown
+	switch {
+	case u.Message != nil:
+		ct = convertToChatType(u.Message.Chat.Type)
+	case u.EditedMessage != nil:
+		ct = convertToChatType(u.EditedMessage.Chat.Type)
+	case u.ChannelPost != nil:
+		ct = convertToChatType(u.ChannelPost.Chat.Type)
+	case u.EditedChannelPost != nil:
+		ct = convertToChatType(u.EditedChannelPost.Chat.Type)
+	case u.InlineQuery != nil:
+		ct = convertToChatType(u.InlineQuery.ChatType)
+	case u.MyChatMember != nil:
+		ct = convertToChatType(u.MyChatMember.Chat.Type)
+	case u.ChatMember != nil:
+		ct = convertToChatType(u.ChatMember.Chat.Type)
+	case u.ChatJoinRequest != nil:
+		ct = convertToChatType(u.ChatJoinRequest.Chat.Type)
+	}
+	return ct
 }
 
 // BuildInlineKeyboardButtonRow helper function for creating Telegram inline keyboards
