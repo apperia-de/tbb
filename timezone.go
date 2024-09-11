@@ -57,12 +57,12 @@ func loadTimezoneCache() *timezone.Timezonecache {
 }
 
 // GetTimezoneInfo returns the time zone info for the given coordinates if available.
-func (a *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
-	res, err := a.tzc.Search(lat, lon)
+func (tb *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
+	res, err := tb.tzc.Search(lat, lon)
 	if err != nil {
 		return nil, err
 	}
-	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon))
+	tb.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon))
 
 	tzi := TZInfo{
 		Latitude:  lat,
@@ -74,23 +74,23 @@ func (a *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Declaring t for Zone method
+	// Declaring tb for Zone method
 	t := time.Now().In(loc)
 
 	// Calling Zone() method
 	tzi.ZoneName, tzi.Offset = t.Zone()
 	tzi.IsDST = t.IsDST()
-	a.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon), "time zone info", tzi)
+	tb.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon), "time zone info", tzi)
 
 	return &tzi, nil
 }
 
 // GetCurrentTimeOffset returns the time offset in seconds for the given coordinates
 // or zero if no time zone info may be obtained from coordinates.
-func (a *TBB) GetCurrentTimeOffset(lat, lon float64) int {
-	tzi, err := a.GetTimezoneInfo(lat, lon)
+func (tb *TBB) GetCurrentTimeOffset(lat, lon float64) int {
+	tzi, err := tb.GetTimezoneInfo(lat, lon)
 	if err != nil {
-		a.logger.Error(err.Error())
+		tb.logger.Error(err.Error())
 		return 0
 	}
 	return tzi.Offset

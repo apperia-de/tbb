@@ -113,59 +113,77 @@ func WithServer(s *http.Server) Option {
 }
 
 // Start starts the Telegram bot server in poll mode
-func (a *TBB) Start() {
-	if err := a.SetBotCommands(a.buildTelegramCommands()); err != nil {
-		a.logger.Error("Cannot set bot commands!")
+func (tb *TBB) Start() {
+	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
-	a.logger.Info("Start dispatcher...")
-	a.logger.Error(a.dsp.Poll().Error())
+
+	if tb.srv == nil {
+		tb.logger.Info("Start dispatcher")
+		tb.logger.Error(tb.dsp.Poll().Error())
+		return
+	}
+
+	// If we have a custom web server, we run the polling in a separate go routine.
+	tb.logger.Info("Start dispatcher and web server")
+	go tb.logger.Error(tb.dsp.Poll().Error())
+	tb.logger.Error(tb.srv.ListenAndServe().Error())
 }
 
 // StartWithWebhook starts the Telegram bot server with a given webhook url.
-func (a *TBB) StartWithWebhook(webhookURL string) {
-	if err := a.SetBotCommands(a.buildTelegramCommands()); err != nil {
-		a.logger.Error("Cannot set bot commands!")
+func (tb *TBB) StartWithWebhook(webhookURL string) {
+	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
-	a.logger.Info("Start dispatcher...")
-
 	if webhookURL == "" {
 		panic("webhook url is empty")
 	}
 
-	a.logger.Error(a.dsp.ListenWebhook(webhookURL).Error())
+	tb.logger.Info(fmt.Sprintf("Start dispatcher with webhook: %q", webhookURL))
+	tb.logger.Error(tb.dsp.ListenWebhook(webhookURL).Error())
 }
 
 // API returns the reference to the echotron.API.
-func (a *TBB) API() echotron.API {
-	return a.api
+func (tb *TBB) API() echotron.API {
+	return tb.api
 }
 
 // Config returns the config
-func (a *TBB) Config() *Config {
-	return a.cfg
+func (tb *TBB) Config() *Config {
+	return tb.cfg
 }
 
 // DB returns the database handle for the bot so that the database can easily be adjusted and extended.
-func (a *TBB) DB() *DB {
-	return a.db
+func (tb *TBB) DB() *DB {
+	return tb.db
+}
+
+// Dispatcher returns the echotron.Dispatcher.
+func (tb *TBB) Dispatcher() *echotron.Dispatcher {
+	return tb.dsp
+}
+
+// Server returns the http.Server.
+func (tb *TBB) Server() *http.Server {
+	return tb.srv
 }
 
 // SetBotCommands registers the given command list for your Telegram bot.
 // Will delete registered bot commands if parameter bc is nil.
-func (a *TBB) SetBotCommands(bc []echotron.BotCommand) error {
+func (tb *TBB) SetBotCommands(bc []echotron.BotCommand) error {
 	if bc == nil {
-		_, err := a.api.DeleteMyCommands(nil)
+		_, err := tb.api.DeleteMyCommands(nil)
 		return err
 	}
-	_, err := a.api.SetMyCommands(nil, bc...)
+	_, err := tb.api.SetMyCommands(nil, bc...)
 	return err
 }
 
-func (a *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
+func (tb *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	b := &Bot{
-		app:    a,
+		app:    tb,
 		chatID: chatID,
 		logger: l.WithGroup("Bot"),
 	}
@@ -175,40 +193,40 @@ func (a *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	}
 
 	var err error
-	b.user, err = a.DB().FindUserByChatID(b.chatID)
+	b.user, err = tb.DB().FindUserByChatID(b.chatID)
 	if err != nil {
 		b.logger.Warn(err.Error())
 		b.logger.Info(fmt.Sprintf("Creating new user with ChatID=%d", b.chatID))
 		b.user = &model.User{ChatID: b.chatID, UserInfo: &model.UserInfo{}, UserPhoto: &model.UserPhoto{}}
 	}
 
-	// Create a new UpdateHandler and set Bot reference back on handler
+	// Create tb new UpdateHandler and set Bot reference back on handler
 	b.handler = hFn()
 	b.handler.SetBot(b)
 	// Set the self-destruction timer
-	b.dTimer = time.AfterFunc(time.Duration(a.cfg.BotSessionTimeout)*time.Minute, b.destruct)
+	b.dTimer = time.AfterFunc(time.Duration(tb.cfg.BotSessionTimeout)*time.Minute, b.destruct)
 	b.logger.Debug(fmt.Sprintf("New Bot instance started with ChatID=%d", b.chatID))
 
 	return b
 }
 
-func (a *TBB) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
+func (tb *TBB) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
 	return func(chatId int64) echotron.Bot {
-		return a.newBot(chatId, a.logger, h)
+		return tb.newBot(chatId, tb.logger, h)
 	}
 }
 
-func (a *TBB) getRegistryCommand(name string) *Command {
-	c, ok := a.cmdReg[name]
+func (tb *TBB) getRegistryCommand(name string) *Command {
+	c, ok := tb.cmdReg[name]
 	if !ok {
 		return nil
 	}
 	return &c
 }
 
-func (a *TBB) buildTelegramCommands() []echotron.BotCommand {
+func (tb *TBB) buildTelegramCommands() []echotron.BotCommand {
 	var bc []echotron.BotCommand
-	for _, c := range a.cmdReg {
+	for _, c := range tb.cmdReg {
 		if c.Name != "" && c.Description != "" {
 			bc = append(bc, echotron.BotCommand{
 				Command:     c.Name,
