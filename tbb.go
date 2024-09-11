@@ -6,6 +6,7 @@ package tbb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
 	"github.com/apperia-de/tbb/pkg/model"
@@ -14,6 +15,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -114,7 +117,8 @@ func WithServer(s *http.Server) Option {
 
 // Start starts the Telegram bot server in poll mode
 func (tb *TBB) Start() {
-	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+	var err error
+	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
@@ -130,13 +134,22 @@ func (tb *TBB) Start() {
 		tb.logger.Info("Start dispatcher")
 		tb.logger.Error(tb.dsp.Poll().Error())
 	}()
+
+	go shutdownServerOnSignal(tb.srv)
+
 	tb.logger.Info("Start server")
-	tb.logger.Error(tb.srv.ListenAndServe().Error())
+	err = tb.srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		tb.logger.Error(err.Error())
+		return
+	}
+	tb.logger.Info("Server closed")
 }
 
 // StartWithWebhook starts the Telegram bot server with a given webhook url.
 func (tb *TBB) StartWithWebhook(webhookURL string) {
-	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+	var err error
+	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
@@ -144,8 +157,18 @@ func (tb *TBB) StartWithWebhook(webhookURL string) {
 		panic("webhook url is empty")
 	}
 
-	tb.logger.Info(fmt.Sprintf("Start dispatcher with webhook: %q", webhookURL))
-	tb.logger.Error(tb.dsp.ListenWebhook(webhookURL).Error())
+	tb.logger.Info(fmt.Sprintf("Start dispatcher and server with webhook: %q", webhookURL))
+
+	if tb.srv != nil {
+		go shutdownServerOnSignal(tb.srv)
+	}
+
+	err = tb.dsp.ListenWebhook(webhookURL)
+	if !errors.Is(err, http.ErrServerClosed) {
+		tb.logger.Error(err.Error())
+		return
+	}
+	tb.logger.Info("Server closed")
 }
 
 // API returns the reference to the echotron.API.
@@ -238,4 +261,16 @@ func (tb *TBB) buildTelegramCommands() []echotron.BotCommand {
 		}
 	}
 	return bc
+}
+
+// shutdownServerOnSignal gracefully shuts down server on SIGINT or SIGTERM
+func shutdownServerOnSignal(srv *http.Server) {
+	termChan := make(chan os.Signal, 1) // Channel for terminating the app via os.Interrupt signal
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-termChan
+	// Perform some cleanup...
+	if err := srv.Shutdown(context.Background()); err != nil {
+		panic(err)
+	}
 }
