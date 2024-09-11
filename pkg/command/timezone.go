@@ -29,19 +29,14 @@ func (c *Timezone) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 
 	loc := *u.Message.Location
 	_, _ = c.Bot().API().SendMessage(fmt.Sprintf("I receive your location update: Latitude = %f | Long = %f", loc.Latitude, loc.Longitude), u.ChatID(), nil)
-	tzi, err := c.Bot().App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
+	tzi, err := c.Bot().TBot().GetTimezoneInfo(loc.Latitude, loc.Longitude)
 	if err != nil {
 		c.Bot().Log().Error("Error getting timezone info", "error", err)
 		return nil
 	}
 
 	user := c.Bot().User()
-	user.UserInfo.Longitude = tzi.Longitude
-	user.UserInfo.Latitude = tzi.Latitude
-	user.UserInfo.Location = tzi.Location
-	user.UserInfo.ZoneName = tzi.ZoneName
-	user.UserInfo.IsDST = tzi.IsDST
-	user.UserInfo.TZOffset = &tzi.Offset
+	user.UserInfo.TimeZoneInfo = *tzi
 	c.Bot().DB().Save(user)
 	return nil
 }

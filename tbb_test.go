@@ -7,19 +7,19 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	t.Run("should create new app", func(t *testing.T) {
+	t.Run("should create new tbot", func(t *testing.T) {
 		cfg := tbb.LoadConfig("test/data/test.config.yml")
-		app := tbb.New(tbb.WithConfig(cfg))
-		if app == nil {
-			t.Error("should return a new app")
+		tbot := tbb.New(tbb.WithConfig(cfg))
+		if tbot == nil {
+			t.Error("should return a new tbot")
 		}
 	})
 
-	t.Run("should panic create new app without config", func(t *testing.T) {
+	t.Run("should panic create new tbot without config", func(t *testing.T) {
 		assert.Panics(t, func() { tbb.New() })
 	})
 
-	t.Run("should create new app with custom config", func(t *testing.T) {
+	t.Run("should create new tbot with custom config", func(t *testing.T) {
 		type CustomConfig struct {
 			Version   string `yaml:"version"`
 			Username  string `yaml:"username"`
@@ -36,8 +36,8 @@ func TestNew(t *testing.T) {
 
 		customCfg := tbb.LoadCustomConfig[CustomConfig]("test/data/test.custom.config.yml")
 
-		app := tbb.New(tbb.WithConfig(customCfg))
-		assert.NotNil(t, app)
+		tbot := tbb.New(tbb.WithConfig(customCfg))
+		assert.NotNil(t, tbot)
 		assert.Equal(t, expected, customCfg.CustomData)
 	})
 }
@@ -50,6 +50,6 @@ func ExampleNew() {
 
 	cfg := tbb.LoadCustomConfig[CustomConfig]("config.yml")
 
-	app := tbb.New(tbb.WithConfig(cfg))
-	app.Start()
+	tbot := tbb.New(tbb.WithConfig(cfg))
+	tbot.Start()
 }

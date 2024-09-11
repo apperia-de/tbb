@@ -17,7 +17,7 @@ type myBotHandler struct {
 
 func (h *myBotHandler) HandleMessage(m echotron.Message) tbb.StateFn {
 	if m.Location != nil {
-		tzi, err := h.Bot().App().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
+		tzi, err := h.Bot().TBot().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
 		if err != nil {
 			h.Bot().Log().Error(err.Error())
 			return nil

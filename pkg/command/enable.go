@@ -12,6 +12,7 @@ type Enable struct {
 
 func (c *Enable) Handle() tbb.StateFn {
 	c.Bot().EnableUser()
+	c.Bot().DB().Save(c.Bot().User())
 
 	if c.Bot().User().UserInfo.ZoneName == "" {
 		var buttons [][]echotron.InlineKeyboardButton
@@ -67,7 +68,7 @@ func (c *Enable) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 	loc := *u.Message.Location
 	_, _ = c.Bot().API().SendMessage(fmt.Sprintf("I receive your location update: Latitude = %f | Longitude = %f.\nYour notifications are now enabled.", loc.Latitude, loc.Longitude), u.ChatID(), nil)
 
-	tzi, err := c.Bot().App().GetTimezoneInfo(loc.Latitude, loc.Longitude)
+	tzi, err := c.Bot().TBot().GetTimezoneInfo(loc.Latitude, loc.Longitude)
 	if err != nil {
 		c.Bot().Log().Error("Error getting timezone info", "error", err)
 		return nil
@@ -79,7 +80,7 @@ func (c *Enable) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 	user.UserInfo.Location = tzi.Location
 	user.UserInfo.ZoneName = tzi.ZoneName
 	user.UserInfo.IsDST = tzi.IsDST
-	user.UserInfo.TZOffset = &tzi.Offset
+	user.UserInfo.Offset = tzi.Offset
 	c.Bot().DB().Save(user)
 
 	return nil

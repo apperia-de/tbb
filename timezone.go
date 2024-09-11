@@ -11,13 +11,13 @@ import (
 //go:embed assets/timezone.data
 var efs embed.FS
 
-type TZInfo struct {
-	Latitude  float64
-	Longitude float64
-	Location  string
-	ZoneName  string
-	IsDST     bool
-	Offset    int
+type TimeZoneInfo struct {
+	Latitude  float64 `json:"latitude,omitempty"`  // Latitude the user sends for determining the user's current Time zone
+	Longitude float64 `json:"longitude,omitempty"` // Longitude the user sends for determining the user's current Time zone
+	Location  string  `json:"location,omitempty"`  // Location of the user's timezone
+	ZoneName  string  `json:"zoneName,omitempty"`  // Zone name of the user's timezone
+	Offset    int     `json:"offset,omitempty"`    // Time zone offset in seconds
+	IsDST     bool    `json:"isDST,omitempty"`     // Whether the offset is in daylight saving time or normal time
 }
 
 func loadTimezoneCache() *timezone.Timezonecache {
@@ -57,14 +57,14 @@ func loadTimezoneCache() *timezone.Timezonecache {
 }
 
 // GetTimezoneInfo returns the time zone info for the given coordinates if available.
-func (tb *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
+func (tb *TBot) GetTimezoneInfo(lat, lon float64) (*TimeZoneInfo, error) {
 	res, err := tb.tzc.Search(lat, lon)
 	if err != nil {
 		return nil, err
 	}
 	tb.logger.Debug(fmt.Sprintf("Found time zone info for coordinates lat=%f lon=%f", lat, lon))
 
-	tzi := TZInfo{
+	tzi := TimeZoneInfo{
 		Latitude:  lat,
 		Longitude: lon,
 		Location:  res.Name,
@@ -87,7 +87,7 @@ func (tb *TBB) GetTimezoneInfo(lat, lon float64) (*TZInfo, error) {
 
 // GetCurrentTimeOffset returns the time offset in seconds for the given coordinates
 // or zero if no time zone info may be obtained from coordinates.
-func (tb *TBB) GetCurrentTimeOffset(lat, lon float64) int {
+func (tb *TBot) GetCurrentTimeOffset(lat, lon float64) int {
 	tzi, err := tb.GetTimezoneInfo(lat, lon)
 	if err != nil {
 		tb.logger.Error(err.Error())

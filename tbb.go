@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
-	"github.com/apperia-de/tbb/pkg/model"
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 	"gorm.io/gorm"
 	"log/slog"
@@ -20,7 +19,7 @@ import (
 	"time"
 )
 
-type TBB struct {
+type TBot struct {
 	db     *DB
 	dsp    *echotron.Dispatcher
 	ctx    context.Context
@@ -33,12 +32,12 @@ type TBB struct {
 	srv    *http.Server
 }
 
-type Option func(*TBB)
+type Option func(*TBot)
 
 // New creates a new Telegram bot based on the given configuration.
 // It uses functional options for configuration.
-func New(opts ...Option) *TBB {
-	app := &TBB{
+func New(opts ...Option) *TBot {
+	tbot := &TBot{
 		ctx:    context.Background(),
 		cmdReg: CommandRegistry{},
 		hFn:    func() UpdateHandler { return &DefaultUpdateHandler{} },
@@ -48,38 +47,38 @@ func New(opts ...Option) *TBB {
 
 	// Loop through each option
 	for _, opt := range opts {
-		opt(app)
+		opt(tbot)
 	}
 
-	if app.cfg == nil {
-		panic("app config is missing")
+	if tbot.cfg == nil {
+		panic("tbot config is missing")
 	}
 
-	if app.logger == nil {
-		app.logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	if tbot.logger == nil {
+		tbot.logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			AddSource: true,
-			Level:     getLogLevel(app.cfg.LogLevel),
+			Level:     getLogLevel(tbot.cfg.LogLevel),
 		}))
 	}
 
-	app.db = NewDB(app.cfg, &gorm.Config{FullSaveAssociations: true})
-	app.api = echotron.NewAPI(app.cfg.Telegram.BotToken)
-	app.dsp = echotron.NewDispatcher(app.cfg.Telegram.BotToken, app.buildBot(app.hFn))
-	if app.srv != nil {
-		app.dsp.SetHTTPServer(app.srv)
+	tbot.db = NewDB(tbot.cfg, &gorm.Config{FullSaveAssociations: true})
+	tbot.api = echotron.NewAPI(tbot.cfg.Telegram.BotToken)
+	tbot.dsp = echotron.NewDispatcher(tbot.cfg.Telegram.BotToken, tbot.buildBot(tbot.hFn))
+	if tbot.srv != nil {
+		tbot.dsp.SetHTTPServer(tbot.srv)
 	}
 
 	// Initialize database tables
-	if err := app.db.AutoMigrate(&model.User{}, &model.UserInfo{}, &model.UserPhoto{}); err != nil {
+	if err := tbot.db.AutoMigrate(&User{}, &UserInfo{}, &UserPhoto{}); err != nil {
 		panic(err)
 	}
 
-	return app
+	return tbot
 }
 
-// WithConfig is the only required option because it provides the config for the app to function properly.
+// WithConfig is the only required option because it provides the config for the tbot to function properly.
 func WithConfig(cfg *Config) Option {
-	return func(app *TBB) {
+	return func(app *TBot) {
 		app.cfg = cfg
 	}
 }
@@ -89,34 +88,34 @@ func WithConfig(cfg *Config) Option {
 // If you want a command to be available in the command list on Telegram,
 // the provided Command must contain a Description.
 func WithCommands(commands []Command) Option {
-	return func(app *TBB) {
+	return func(app *TBot) {
 		app.cmdReg = buildCommandRegistry(commands)
 	}
 }
 
 // WithHandlerFunc option can be used to override the default UpdateHandlerFn for custom echotron.Update message handling.
 func WithHandlerFunc(hFn UpdateHandlerFn) Option {
-	return func(app *TBB) {
+	return func(app *TBot) {
 		app.hFn = hFn
 	}
 }
 
 // WithLogger option can be used to override the default logger with a custom one.
 func WithLogger(l *slog.Logger) Option {
-	return func(app *TBB) {
+	return func(app *TBot) {
 		app.logger = l
 	}
 }
 
 // WithServer option can be used add a custom http.Server to the dispatcher
 func WithServer(s *http.Server) Option {
-	return func(app *TBB) {
+	return func(app *TBot) {
 		app.srv = s
 	}
 }
 
 // Start starts the Telegram bot server in poll mode
-func (tb *TBB) Start() {
+func (tb *TBot) Start() {
 	var err error
 	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
@@ -147,7 +146,7 @@ func (tb *TBB) Start() {
 }
 
 // StartWithWebhook starts the Telegram bot server with a given webhook url.
-func (tb *TBB) StartWithWebhook(webhookURL string) {
+func (tb *TBot) StartWithWebhook(webhookURL string) {
 	var err error
 	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
@@ -172,33 +171,33 @@ func (tb *TBB) StartWithWebhook(webhookURL string) {
 }
 
 // API returns the reference to the echotron.API.
-func (tb *TBB) API() echotron.API {
+func (tb *TBot) API() echotron.API {
 	return tb.api
 }
 
 // Config returns the config
-func (tb *TBB) Config() *Config {
+func (tb *TBot) Config() *Config {
 	return tb.cfg
 }
 
 // DB returns the database handle for the bot so that the database can easily be adjusted and extended.
-func (tb *TBB) DB() *DB {
+func (tb *TBot) DB() *DB {
 	return tb.db
 }
 
 // Dispatcher returns the echotron.Dispatcher.
-func (tb *TBB) Dispatcher() *echotron.Dispatcher {
+func (tb *TBot) Dispatcher() *echotron.Dispatcher {
 	return tb.dsp
 }
 
 // Server returns the http.Server.
-func (tb *TBB) Server() *http.Server {
+func (tb *TBot) Server() *http.Server {
 	return tb.srv
 }
 
 // SetBotCommands registers the given command list for your Telegram bot.
 // Will delete registered bot commands if parameter bc is nil.
-func (tb *TBB) SetBotCommands(bc []echotron.BotCommand) error {
+func (tb *TBot) SetBotCommands(bc []echotron.BotCommand) error {
 	if bc == nil {
 		_, err := tb.api.DeleteMyCommands(nil)
 		return err
@@ -207,9 +206,9 @@ func (tb *TBB) SetBotCommands(bc []echotron.BotCommand) error {
 	return err
 }
 
-func (tb *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
+func (tb *TBot) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	b := &Bot{
-		app:    tb,
+		tbot:   tb,
 		chatID: chatID,
 		logger: l.WithGroup("Bot"),
 	}
@@ -223,7 +222,7 @@ func (tb *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	if err != nil {
 		b.logger.Warn(err.Error())
 		b.logger.Info(fmt.Sprintf("Creating new user with ChatID=%d", b.chatID))
-		b.user = &model.User{ChatID: b.chatID, UserInfo: &model.UserInfo{}, UserPhoto: &model.UserPhoto{}}
+		b.user = &User{ChatID: b.chatID, UserInfo: &UserInfo{}, UserPhoto: &UserPhoto{}}
 	}
 
 	// Create tb new UpdateHandler and set Bot reference back on handler
@@ -236,13 +235,13 @@ func (tb *TBB) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	return b
 }
 
-func (tb *TBB) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
+func (tb *TBot) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
 	return func(chatId int64) echotron.Bot {
 		return tb.newBot(chatId, tb.logger, h)
 	}
 }
 
-func (tb *TBB) getRegistryCommand(name string) *Command {
+func (tb *TBot) getRegistryCommand(name string) *Command {
 	c, ok := tb.cmdReg[name]
 	if !ok {
 		return nil
@@ -250,7 +249,7 @@ func (tb *TBB) getRegistryCommand(name string) *Command {
 	return &c
 }
 
-func (tb *TBB) buildTelegramCommands() []echotron.BotCommand {
+func (tb *TBot) buildTelegramCommands() []echotron.BotCommand {
 	var bc []echotron.BotCommand
 	for _, c := range tb.cmdReg {
 		if c.Name != "" && c.Description != "" {
@@ -265,7 +264,7 @@ func (tb *TBB) buildTelegramCommands() []echotron.BotCommand {
 
 // shutdownServerOnSignal gracefully shuts down server on SIGINT or SIGTERM
 func shutdownServerOnSignal(srv *http.Server) {
-	termChan := make(chan os.Signal, 1) // Channel for terminating the app via os.Interrupt signal
+	termChan := make(chan os.Signal, 1) // Channel for terminating the tbot via os.Interrupt signal
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-termChan

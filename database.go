@@ -2,7 +2,6 @@ package tbb
 
 import (
 	"fmt"
-	"github.com/apperia-de/tbb/pkg/model"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -60,9 +59,9 @@ func NewDB(cfg *Config, gormCfg *gorm.Config) *DB {
 }
 
 // FindUserByChatID return a user by Telegram chat id if exists or error otherwise.
-func (db *DB) FindUserByChatID(chatID int64) (*model.User, error) {
+func (db *DB) FindUserByChatID(chatID int64) (*User, error) {
 	var (
-		user model.User
+		user User
 		err  error
 	)
 	err = db.Preload("UserInfo").Preload("UserPhoto").First(&user, "chat_id = ?", chatID).Error

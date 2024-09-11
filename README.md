@@ -1,7 +1,7 @@
-# Telegram Bot Builder (tbb)
+# Telegram Bot TBot (tbb)
 
 Tbb aims to provide tb starting point for building Telegram bots in go.
-The Telegram Bot Builder is based on the concurrent library [NicoNex/echotron](https://github.com/NicoNex/echotron).
+The Telegram Bot TBot is based on the concurrent library [NicoNex/echotron](https://github.com/NicoNex/echotron).
 To spin up tb bot on your own see the examples section for details.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/apperia-de/tbb)](https://goreportcard.com/report/github.com/apperia-de/tbb)
@@ -36,7 +36,7 @@ import (
 func main() {
 	// Load your Telegram bot config (@see example.config.yml)
 	cfg := tbb.LoadConfig('config.yml')
-	app := tbb.New(
+	tbot := tbb.New(
 		tbb.WithConfig(cfg),
 		tbb.WithCommands([]tbb.Command{
 			{
@@ -66,14 +66,14 @@ func main() {
 		}),
 	)
 	
-	app.Start() // Start tb new bot polling for updates
+	tbot.Start() // Start tb new bot polling for updates
 }
 ```
 
 ### example.config.yml
 ```yaml
 ##############################################
-# Telegram Bot Builder example configuration #
+# Telegram Bot TBot example configuration #
 ##############################################
 
 debug: true
@@ -82,7 +82,7 @@ telegram:
   botToken: "YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
 database:
   type: sqlite # One of sqlite | postgres | mysql
-  filename: "app.db" # Only required for type sqlite
+  filename: "tbot.db" # Only required for type sqlite
   #dsn: "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local" # Only required for type postgres or mysql
 botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.
 ```

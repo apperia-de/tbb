@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
-	"github.com/apperia-de/tbb/pkg/model"
 	"io"
 	"log/slog"
 	"net/http"
@@ -29,12 +28,12 @@ const (
 type StateFn func(*echotron.Update) StateFn
 
 type Bot struct {
-	app     *TBB
+	tbot    *TBot // Backreference to TBot instance
 	chatID  int64
 	cmd     *Command
 	handler UpdateHandler
 	state   StateFn
-	user    *model.User
+	user    *User
 	logger  *slog.Logger
 	dTimer  *time.Timer // Destruction timer
 	mu      sync.Mutex
@@ -51,7 +50,7 @@ func (b *Bot) Command() *Command {
 }
 
 // User returns the User associated with the bot
-func (b *Bot) User() *model.User {
+func (b *Bot) User() *User {
 	return b.user
 }
 
@@ -62,17 +61,17 @@ func (b *Bot) Log() *slog.Logger {
 
 // API returns the echotron.API
 func (b *Bot) API() echotron.API {
-	return b.app.API()
+	return b.tbot.API()
 }
 
-// TBB returns the TBB reference
-func (b *Bot) App() *TBB {
-	return b.app
+// TBot returns the TBot reference
+func (b *Bot) TBot() *TBot {
+	return b.tbot
 }
 
 // DB Returns the database reference
 func (b *Bot) DB() *DB {
-	return b.app.DB()
+	return b.tbot.DB()
 }
 
 // IsUserActive returns true if the user is active or false otherwise
@@ -82,12 +81,12 @@ func (b *Bot) IsUserActive() bool {
 
 // ReplaceMessage replaces the given CallbackQuery message with new Text and Keyboard
 func (b *Bot) ReplaceMessage(q *echotron.CallbackQuery, text string, buttons [][]echotron.InlineKeyboardButton) {
-	_, _ = b.app.API().EditMessageText(text, echotron.NewMessageID(b.chatID, q.Message.ID), &echotron.MessageTextOptions{ReplyMarkup: echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
+	_, _ = b.tbot.API().EditMessageText(text, echotron.NewMessageID(b.chatID, q.Message.ID), &echotron.MessageTextOptions{ReplyMarkup: echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
 }
 
 // DeleteMessage deletes the given CallbackQuery message
 func (b *Bot) DeleteMessage(q *echotron.CallbackQuery) {
-	_, _ = b.app.API().DeleteMessage(b.chatID, q.Message.ID)
+	_, _ = b.tbot.API().DeleteMessage(b.chatID, q.Message.ID)
 }
 
 // EnableUser enables the current user and updates the database
@@ -96,7 +95,6 @@ func (b *Bot) EnableUser() {
 	defer b.mu.Unlock()
 	b.user.UserInfo.IsActive = true
 	b.user.UserInfo.Status = memberStatusJoin
-	b.app.DB().Save(b.user)
 }
 
 // DisableUser disable the current user and update the database
@@ -105,7 +103,6 @@ func (b *Bot) DisableUser() {
 	defer b.mu.Unlock()
 	b.user.UserInfo.IsActive = false
 	b.user.UserInfo.Status = memberStatusLeave
-	b.app.DB().Save(b.user)
 }
 
 // GetUsersTimezoneOffset returns the time zone offset in seconds if the user has already provided coordinates.
@@ -115,7 +112,7 @@ func (b *Bot) GetUsersTimezoneOffset() (int, error) {
 	if uInfo.Latitude == 0 && uInfo.Longitude == 0 {
 		return 0, errors.New("no user coordinates available")
 	}
-	return b.app.GetCurrentTimeOffset(uInfo.Latitude, uInfo.Longitude), nil
+	return b.tbot.GetCurrentTimeOffset(uInfo.Latitude, uInfo.Longitude), nil
 }
 
 // Update is called whenever a Telegram update occurs
@@ -124,17 +121,18 @@ func (b *Bot) Update(u *echotron.Update) {
 
 	b.resetSessionTimeout()
 
-	// Check asynchronously if we need to update user information from Telegram
-	go b.updateUserData(u, updateDuration)
-
 	// Allow only users from AllowedChatIDs to use the bot
-	if len(b.app.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.app.cfg.AllowedChatIDs, u.ChatID()) {
+	if len(b.tbot.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.tbot.cfg.AllowedChatIDs, u.ChatID()) {
 		if b.user.UserInfo.IsActive {
 			b.DisableUser()
+			b.DB().Save(b.user)
 		}
-		b.logger.Info("Denied access for user", "user", PrintAsJson(b.User(), false), "update", PrintAsJson(u, false))
+		b.logger.Info("Access denied for user", "user", PrintAsJson(b.User(), false), "update", PrintAsJson(u, false))
 		return
 	}
+
+	// Check asynchronously if we need to update user information from Telegram
+	go b.updateUserData(u, updateDuration)
 
 	// Commands always take the highest precedence
 	if cmd := b.getCommand(u); cmd != nil {
@@ -163,7 +161,7 @@ func (b *Bot) Update(u *echotron.Update) {
 }
 
 func (b *Bot) resetSessionTimeout() {
-	st := time.Duration(b.App().cfg.BotSessionTimeout) * time.Minute
+	st := time.Duration(b.tbot.cfg.BotSessionTimeout) * time.Minute
 	b.dTimer.Reset(st)
 	b.logger.Debug(fmt.Sprintf("Bot istance with ChatID=%d will exire at %s", b.chatID, time.Now().Add(st)))
 }
@@ -226,7 +224,7 @@ func (b *Bot) getCommand(u *echotron.Update) *Command {
 		re := regexp.MustCompile(`\s{2,}`)
 		cmd := strings.Split(re.ReplaceAllString(text, " "), " ")
 
-		c := b.app.getRegistryCommand(cmd[0])
+		c := b.tbot.getRegistryCommand(cmd[0])
 		if c != nil && len(cmd) > 1 {
 			c.Params = cmd[1:]
 		}
@@ -264,7 +262,7 @@ func (b *Bot) updateUser(u *echotron.Update) error {
 		b.Log().Warn(err.Error())
 	}
 
-	return b.app.DB().Save(b.user).Error
+	return b.tbot.DB().Save(b.user).Error
 }
 
 // updateUserData updates the DB user data with data from Telegram update only if the
@@ -287,15 +285,15 @@ func (b *Bot) updateUserData(u *echotron.Update, dur time.Duration) {
 }
 
 func (b *Bot) destruct() {
-	b.App().dsp.DelSession(b.chatID)
+	b.tbot.dsp.DelSession(b.chatID)
 	b.logger.Info(fmt.Sprintf("Deleted bot instance with ChatID=%d", b.chatID))
 }
 
 // fetchCurrentUserPhoto tries to update the current users photo with the data from Telegram
-func (b *Bot) fetchCurrentUserPhoto() (*model.UserPhoto, error) {
-	userPhoto := &model.UserPhoto{}
+func (b *Bot) fetchCurrentUserPhoto() (*UserPhoto, error) {
+	userPhoto := &UserPhoto{}
 
-	res, err := b.app.api.GetUserProfilePhotos(b.user.ChatID, &echotron.UserProfileOptions{Offset: 0, Limit: 1})
+	res, err := b.tbot.api.GetUserProfilePhotos(b.user.ChatID, &echotron.UserProfileOptions{Offset: 0, Limit: 1})
 	if err != nil {
 		return userPhoto, err
 	}
@@ -313,12 +311,12 @@ func (b *Bot) fetchCurrentUserPhoto() (*model.UserPhoto, error) {
 	newestPhotoSizes := res.Result.Photos[0]
 	biggestPhotoSize := newestPhotoSizes[len(newestPhotoSizes)-1]
 
-	fileID, err := b.app.api.GetFile(biggestPhotoSize.FileID)
+	fileID, err := b.tbot.api.GetFile(biggestPhotoSize.FileID)
 	if err != nil {
 		return userPhoto, err
 	}
 
-	photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.app.cfg.Telegram.BotToken, fileID.Result.FilePath)
+	photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.tbot.cfg.Telegram.BotToken, fileID.Result.FilePath)
 	b.logger.Debug(fileID.Result.FilePath)
 	fileRes, err := http.Get(photoURL)
 	if err != nil {
@@ -332,7 +330,7 @@ func (b *Bot) fetchCurrentUserPhoto() (*model.UserPhoto, error) {
 
 	b.logger.Info("Updated user photo", "userID", b.user.ID)
 
-	userPhoto = &model.UserPhoto{
+	userPhoto = &UserPhoto{
 		UserID:       b.user.ID,
 		FileID:       biggestPhotoSize.FileID,
 		FileUniqueID: biggestPhotoSize.FileUniqueID,
