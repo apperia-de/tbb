@@ -126,8 +126,11 @@ func (tb *TBB) Start() {
 	}
 
 	// If we have a custom web server, we run the polling in a separate go routine.
-	tb.logger.Info("Start dispatcher and web server")
-	go tb.logger.Error(tb.dsp.Poll().Error())
+	go func() {
+		tb.logger.Info("Start dispatcher")
+		tb.logger.Error(tb.dsp.Poll().Error())
+	}()
+	tb.logger.Info("Start server")
 	tb.logger.Error(tb.srv.ListenAndServe().Error())
 }
 
