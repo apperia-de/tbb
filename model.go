@@ -46,3 +46,16 @@ type UserPhoto struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
+
+type File struct {
+	ID        int64  `gorm:"primaryKey" json:"id"`
+	Name      string // Filename
+	UniqueID  string // Unique file ID from Telegram
+	Extension string // File extension with the preceding "." if exists or empty otherwise
+	MimeType  string // Mime type of the stored file
+	Hash      string // MD5 hash of the file binary data
+	Size      int64  // File size of the binary data
+	Data      []byte // Binary file data
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}

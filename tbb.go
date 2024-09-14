@@ -6,10 +6,12 @@ package tbb
 
 import (
 	"context"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"github.com/NicoNex/echotron/v3"
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
+	"github.com/gabriel-vasile/mimetype"
 	"gorm.io/gorm"
 	"log/slog"
 	"net/http"
@@ -193,6 +195,32 @@ func (tb *TBot) Dispatcher() *echotron.Dispatcher {
 // Server returns the http.Server.
 func (tb *TBot) Server() *http.Server {
 	return tb.srv
+}
+
+// DownloadFile downloads a file from Telegram by a given fileID
+func (tb *TBot) DownloadFile(fileID string) (*File, error) {
+	fileIDRes, err := tb.API().GetFile(fileID)
+	if err != nil {
+		return nil, err
+	}
+	tb.logger.Debug(fileIDRes.Description)
+
+	fileData, err := tb.API().DownloadFile(fileIDRes.Result.FilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	mime := mimetype.Detect(fileData)
+	f := &File{
+		UniqueID:  fileIDRes.Result.FileUniqueID,
+		Extension: mime.Extension(),
+		MimeType:  mime.String(),
+		Hash:      fmt.Sprintf("%x", md5.Sum(fileData)),
+		Size:      fileIDRes.Result.FileSize,
+		Data:      fileData,
+	}
+
+	return f, nil
 }
 
 // SetBotCommands registers the given command list for your Telegram bot.
