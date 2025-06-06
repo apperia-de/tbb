@@ -15,7 +15,7 @@ import (
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 )
 
-const DefaultURL = "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2024a/timezones-with-oceans-now.geojson.zip"
+const defaultURL = "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2024a/timezones-with-oceans-now.geojson.zip"
 
 var (
 	// TODO: benchmark     = flag.Bool("benchmark", false, "benchmark: runs a benchmark script")
@@ -24,7 +24,7 @@ var (
 	lng    = flag.Float64("lng", -115.8613, "search Longitude")
 
 	build         = flag.Bool("build", false, "build: is used to download and build timezone data")
-	url           = flag.String("url", DefaultURL, "Url for data source as a zipfile")
+	url           = flag.String("url", defaultURL, "Url for data source as a zipfile")
 	dbFilename    = flag.String("db", "timezone.data", "filename where timezone polygon data will be stored")
 	cacheFilename = flag.String("cache", "/tmp/geoJSON.zip", "cache directory for downloaded zipfile")
 )

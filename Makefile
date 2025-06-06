@@ -42,7 +42,7 @@ create-next-major-version:
 	@echo Next Major Version: v$(NEXT_MAJOR_VERSION)
 	@echo $(NEXT_MAJOR_VERSION) > VERSION
 	@git add .
-	@git commit -m "ARelease new major version: (v$(NEXT_MAJOR_VERSION))"
+	@git commit -m "Release new major version: (v$(NEXT_MAJOR_VERSION))"
 	@git tag v$(NEXT_MAJOR_VERSION)
 	@echo In order to update tags run: git push --tags
 
