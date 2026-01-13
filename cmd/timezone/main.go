@@ -64,11 +64,11 @@ func searchTimezone(lat, lng float64) (timezone.Result, error) {
 	if err != nil {
 		return timezone.Result{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err = tzc.Load(f); err != nil {
 		return timezone.Result{}, err
 	}
-	defer tzc.Close()
+	defer func() { _ = tzc.Close() }()
 
 	return tzc.Search(lat, lng)
 }
