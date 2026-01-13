@@ -32,7 +32,7 @@ func loadTimezoneCache() *timezone.Timezonecache {
 	if err != nil {
 		panic(err)
 	}
-	defer os.Remove(tempF.Name())
+	defer func() { _ = os.Remove(tempF.Name()) }()
 
 	data, err = efs.ReadFile("assets/timezone.data")
 	if err != nil {
