@@ -1,4 +1,4 @@
 telegram:
-  botToken: "EXAMPLE"
+  botToken: "123456:EXAMPLE"
 version: "v0.1.0"
 username: me

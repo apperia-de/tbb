@@ -1,9 +1,9 @@
 module github.com/apperia-de/tbb
 
-go 1.25.0
+go 1.26
 
 require (
-	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.27
+	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.35
 	github.com/dusted-go/logging v1.3.0
 	github.com/evanoberholster/timezoneLookup/v2 v2.0.0
 	github.com/gabriel-vasile/mimetype v1.4.13

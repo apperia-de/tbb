@@ -49,6 +49,6 @@ func TestCustomConfigExtension(t *testing.T) {
 
 		assert.Equal(t, "v0.1.0", custom.Version)
 		assert.Equal(t, "me", custom.Username)
-		assert.Equal(t, "EXAMPLE", custom.Telegram.BotToken)
+		assert.Equal(t, "123456:EXAMPLE", custom.Telegram.BotToken)
 	})
 }

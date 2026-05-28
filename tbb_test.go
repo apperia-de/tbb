@@ -30,7 +30,7 @@ func TestNew(t *testing.T) {
 			Config: tbb.Config{
 				Telegram: struct {
 					BotToken string `yaml:"botToken"`
-				}{BotToken: "EXAMPLE"},
+				}{BotToken: "123456:EXAMPLE"},
 			},
 			Version:  "v0.1.0",
 			Username: "me",
@@ -57,7 +57,7 @@ func ExampleNew() {
 		Config: tbb.Config{
 			Telegram: struct {
 				BotToken string `yaml:"botToken"`
-			}{BotToken: "YOUR_TELEGRAM_BOT_TOKEN"},
+			}{BotToken: "123456:YOUR_TELEGRAM_BOT_TOKEN"},
 		},
 	}
 

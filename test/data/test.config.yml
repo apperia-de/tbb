@@ -5,6 +5,6 @@
 debug: true
 logLevel: info # One of debug | info | warn | error
 telegram:
-  botToken: "YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
+  botToken: "123456:YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
 # database parameters are omitted
 botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.
