@@ -173,6 +173,15 @@ func WithServer(s *http.Server) Option {
 
 // Start starts the Telegram bot server in poll mode
 func (tb *TBot) Start() {
+	if tb.srv != nil {
+		go func() {
+			tb.logger.Info("Starting Web Server", "addr", tb.srv.Addr)
+			if err := tb.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				tb.logger.Error("Web Server failed", "error", err)
+			}
+		}()
+	}
+
 	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
@@ -206,11 +215,28 @@ func (tb *TBot) Start() {
 	if err := tb.updater.Stop(); err != nil {
 		tb.logger.Error("Failed to stop updater", "error", err)
 	}
+	if tb.srv != nil {
+		tb.logger.Info("Stopping Web Server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tb.srv.Shutdown(ctx); err != nil {
+			tb.logger.Error("Failed to shutdown Web Server", "error", err)
+		}
+	}
 	tb.logger.Info("Bot stopped")
 }
 
 // StartWithWebhook starts the Telegram bot server with a given webhook url path and listen address.
 func (tb *TBot) StartWithWebhook(webhookPath string, listenAddr string) {
+	if tb.srv != nil {
+		go func() {
+			tb.logger.Info("Starting Web Server", "addr", tb.srv.Addr)
+			if err := tb.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				tb.logger.Error("Web Server failed", "error", err)
+			}
+		}()
+	}
+
 	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
@@ -242,6 +268,14 @@ func (tb *TBot) StartWithWebhook(webhookPath string, listenAddr string) {
 	tb.logger.Info("Stopping webhook...")
 	if err := tb.updater.Stop(); err != nil {
 		tb.logger.Error("Failed to stop updater", "error", err)
+	}
+	if tb.srv != nil {
+		tb.logger.Info("Stopping Web Server...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tb.srv.Shutdown(ctx); err != nil {
+			tb.logger.Error("Failed to shutdown Web Server", "error", err)
+		}
 	}
 	tb.logger.Info("Bot stopped")
 }
