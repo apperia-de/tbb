@@ -64,4 +64,3 @@ func ExampleNew() {
 	tbot := tbb.New(tbb.WithConfig(&cfg.Config))
 	tbot.Start()
 }
-

@@ -15,7 +15,7 @@ import (
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 )
 
-const defaultURL = "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2024a/timezones-with-oceans-now.geojson.zip"
+const defaultURL = "https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026b/timezones-with-oceans-now.geojson.zip"
 
 var (
 	// TODO: benchmark     = flag.Bool("benchmark", false, "benchmark: runs a benchmark script")

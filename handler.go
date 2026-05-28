@@ -77,22 +77,22 @@ func (h *DefaultUpdateHandler) printAsJson(v any) string {
 type RouterUpdateHandler struct {
 	bot *Bot
 
-	OnMessage             func(*gotgbot.Message) StateFn
-	OnEditedMessage       func(*gotgbot.Message) StateFn
-	OnChannelPost         func(*gotgbot.Message) StateFn
-	OnEditedChannelPost   func(*gotgbot.Message) StateFn
-	OnInlineQuery         func(*gotgbot.InlineQuery) StateFn
-	OnChosenInlineResult  func(*gotgbot.ChosenInlineResult) StateFn
-	OnCallbackQuery       func(*gotgbot.CallbackQuery) StateFn
-	OnShippingQuery       func(*gotgbot.ShippingQuery) StateFn
-	OnPreCheckoutQuery    func(*gotgbot.PreCheckoutQuery) StateFn
-	OnPoll                func(*gotgbot.Poll) StateFn
-	OnPollAnswer          func(*gotgbot.PollAnswer) StateFn
-	OnMyChatMember        func(*gotgbot.ChatMemberUpdated) StateFn
-	OnChatMember          func(*gotgbot.ChatMemberUpdated) StateFn
-	OnChatJoinRequest     func(*gotgbot.ChatJoinRequest) StateFn
-	OnChatBoost           func(*gotgbot.ChatBoostUpdated) StateFn
-	OnRemovedChatBoost    func(*gotgbot.ChatBoostRemoved) StateFn
+	OnMessage            func(*gotgbot.Message) StateFn
+	OnEditedMessage      func(*gotgbot.Message) StateFn
+	OnChannelPost        func(*gotgbot.Message) StateFn
+	OnEditedChannelPost  func(*gotgbot.Message) StateFn
+	OnInlineQuery        func(*gotgbot.InlineQuery) StateFn
+	OnChosenInlineResult func(*gotgbot.ChosenInlineResult) StateFn
+	OnCallbackQuery      func(*gotgbot.CallbackQuery) StateFn
+	OnShippingQuery      func(*gotgbot.ShippingQuery) StateFn
+	OnPreCheckoutQuery   func(*gotgbot.PreCheckoutQuery) StateFn
+	OnPoll               func(*gotgbot.Poll) StateFn
+	OnPollAnswer         func(*gotgbot.PollAnswer) StateFn
+	OnMyChatMember       func(*gotgbot.ChatMemberUpdated) StateFn
+	OnChatMember         func(*gotgbot.ChatMemberUpdated) StateFn
+	OnChatJoinRequest    func(*gotgbot.ChatJoinRequest) StateFn
+	OnChatBoost          func(*gotgbot.ChatBoostUpdated) StateFn
+	OnRemovedChatBoost   func(*gotgbot.ChatBoostRemoved) StateFn
 }
 
 func (h *RouterUpdateHandler) Bot() *Bot {
