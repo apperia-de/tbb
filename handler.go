@@ -3,7 +3,7 @@ package tbb
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/NicoNex/echotron/v3"
+	"github.com/PaulSonOfLars/gotgbot/v2"
 	"strings"
 )
 
@@ -46,18 +46,7 @@ type UpdateHandlerFn func() UpdateHandler
 type UpdateHandler interface {
 	Bot() *Bot
 	SetBot(*Bot)
-	HandleMessage(echotron.Message) StateFn
-	HandleEditedMessage(echotron.Message) StateFn
-	HandleChannelPost(echotron.Message) StateFn
-	HandleEditedChannelPost(echotron.Message) StateFn
-	HandleInlineQuery(echotron.InlineQuery) StateFn
-	HandleChosenInlineResult(echotron.ChosenInlineResult) StateFn
-	HandleCallbackQuery(echotron.CallbackQuery) StateFn
-	HandleShippingQuery(echotron.ShippingQuery) StateFn
-	HandlePreCheckoutQuery(echotron.PreCheckoutQuery) StateFn
-	HandleChatMember(echotron.ChatMemberUpdated) StateFn
-	HandleMyChatMember(echotron.ChatMemberUpdated) StateFn
-	HandleChatJoinRequest(echotron.ChatJoinRequest) StateFn
+	HandleUpdate(u *gotgbot.Update) StateFn
 }
 
 // DefaultUpdateHandler implements the UpdateHandler interface
@@ -73,93 +62,81 @@ func (h *DefaultUpdateHandler) SetBot(bot *Bot) {
 	h.bot = bot
 }
 
-func (h *DefaultUpdateHandler) HandleMessage(m echotron.Message) StateFn {
-	h.bot.Log().Info("Method: HandleMessage", "Message", h.printAsJson(m))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleEditedMessage(m echotron.Message) StateFn {
-	h.bot.Log().Info("Method: HandleEditedMessage", "Message", h.printAsJson(m))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleChannelPost(m echotron.Message) StateFn {
-	h.bot.Log().Info("Method: HandleChannelPost", "Message", h.printAsJson(m))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleEditedChannelPost(m echotron.Message) StateFn {
-	h.bot.Log().Info("Method: HandleEditedChannelPost", "Message", h.printAsJson(m))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleInlineQuery(i echotron.InlineQuery) StateFn {
-	h.bot.Log().Info("Method: HandleInlineQuery", "InlineQuery", h.printAsJson(i))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleChosenInlineResult(c echotron.ChosenInlineResult) StateFn {
-	h.bot.Log().Info("Method: HandleChosenInlineResult", "ChosenInlineResult", h.printAsJson(c))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleCallbackQuery(c echotron.CallbackQuery) StateFn {
-	h.bot.Log().Info("Method: HandleCallbackQuery", "CallbackQuery", h.printAsJson(c))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleShippingQuery(s echotron.ShippingQuery) StateFn {
-	h.bot.Log().Info("Method: HandleShippingQuery", "ShippingQuery", h.printAsJson(s))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandlePreCheckoutQuery(p echotron.PreCheckoutQuery) StateFn {
-	h.bot.Log().Info("Method: HandlePreCheckoutQuery", "PreCheckoutQuery", h.printAsJson(p))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleChatMember(c echotron.ChatMemberUpdated) StateFn {
-	h.bot.Log().Info("Method: HandleChatMember", "ChatMemberUpdated", h.printAsJson(c))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleChatJoinRequest(c echotron.ChatJoinRequest) StateFn {
-	h.bot.Log().Info("Method: HandleChatJoinRequest", "ChatJoinRequest", h.printAsJson(c))
-	return nil
-}
-
-func (h *DefaultUpdateHandler) HandleMyChatMember(c echotron.ChatMemberUpdated) StateFn {
-	h.bot.Log().Info("Method: HandleMyChatMember", "ChatMemberUpdated", h.printAsJson(c))
-
-	status := c.NewChatMember.Status
-	switch status {
-	case memberStatusJoin:
-		// User unblocked the Bot
-		h.bot.Log().Info("Bot unblocked by user", "status", status, "user", h.bot.user.Firstname)
-		h.bot.EnableUser()
-	case memberStatusLeave:
-		// User blocked the Bot
-		h.bot.Log().Info("Bot blocked by user", "status", status, "user", h.bot.user.Firstname)
-		h.bot.DisableUser()
-		_ = h.bot.Store().Save(h.bot.user)
-	default:
-		// Unknown
-		h.bot.Log().Info("MyChatMember.Status", "status", status, "user", c.From)
-	}
-
+func (h *DefaultUpdateHandler) HandleUpdate(u *gotgbot.Update) StateFn {
+	h.bot.Log().Info("Received update", "update", h.printAsJson(u))
 	return nil
 }
 
 func (h *DefaultUpdateHandler) printAsJson(v any) string {
-	var (
-		err     error
-		jsonStr []byte
-	)
-
-	jsonStr, err = json.Marshal(v)
-	if err != nil {
-		h.bot.Log().Error(err.Error())
-	}
-
+	jsonStr, _ := json.Marshal(v)
 	return string(jsonStr)
+}
+
+// RouterUpdateHandler is a helper implementation of UpdateHandler that routes updates
+// to individual configured callback functions.
+type RouterUpdateHandler struct {
+	bot *Bot
+
+	OnMessage             func(*gotgbot.Message) StateFn
+	OnEditedMessage       func(*gotgbot.Message) StateFn
+	OnChannelPost         func(*gotgbot.Message) StateFn
+	OnEditedChannelPost   func(*gotgbot.Message) StateFn
+	OnInlineQuery         func(*gotgbot.InlineQuery) StateFn
+	OnChosenInlineResult  func(*gotgbot.ChosenInlineResult) StateFn
+	OnCallbackQuery       func(*gotgbot.CallbackQuery) StateFn
+	OnShippingQuery       func(*gotgbot.ShippingQuery) StateFn
+	OnPreCheckoutQuery    func(*gotgbot.PreCheckoutQuery) StateFn
+	OnPoll                func(*gotgbot.Poll) StateFn
+	OnPollAnswer          func(*gotgbot.PollAnswer) StateFn
+	OnMyChatMember        func(*gotgbot.ChatMemberUpdated) StateFn
+	OnChatMember          func(*gotgbot.ChatMemberUpdated) StateFn
+	OnChatJoinRequest     func(*gotgbot.ChatJoinRequest) StateFn
+	OnChatBoost           func(*gotgbot.ChatBoostUpdated) StateFn
+	OnRemovedChatBoost    func(*gotgbot.ChatBoostRemoved) StateFn
+}
+
+func (h *RouterUpdateHandler) Bot() *Bot {
+	return h.bot
+}
+
+func (h *RouterUpdateHandler) SetBot(bot *Bot) {
+	h.bot = bot
+}
+
+func (h *RouterUpdateHandler) HandleUpdate(u *gotgbot.Update) StateFn {
+	switch {
+	case u.Message != nil && h.OnMessage != nil:
+		return h.OnMessage(u.Message)
+	case u.EditedMessage != nil && h.OnEditedMessage != nil:
+		return h.OnEditedMessage(u.EditedMessage)
+	case u.ChannelPost != nil && h.OnChannelPost != nil:
+		return h.OnChannelPost(u.ChannelPost)
+	case u.EditedChannelPost != nil && h.OnEditedChannelPost != nil:
+		return h.OnEditedChannelPost(u.EditedChannelPost)
+	case u.InlineQuery != nil && h.OnInlineQuery != nil:
+		return h.OnInlineQuery(u.InlineQuery)
+	case u.ChosenInlineResult != nil && h.OnChosenInlineResult != nil:
+		return h.OnChosenInlineResult(u.ChosenInlineResult)
+	case u.CallbackQuery != nil && h.OnCallbackQuery != nil:
+		return h.OnCallbackQuery(u.CallbackQuery)
+	case u.ShippingQuery != nil && h.OnShippingQuery != nil:
+		return h.OnShippingQuery(u.ShippingQuery)
+	case u.PreCheckoutQuery != nil && h.OnPreCheckoutQuery != nil:
+		return h.OnPreCheckoutQuery(u.PreCheckoutQuery)
+	case u.Poll != nil && h.OnPoll != nil:
+		return h.OnPoll(u.Poll)
+	case u.PollAnswer != nil && h.OnPollAnswer != nil:
+		return h.OnPollAnswer(u.PollAnswer)
+	case u.MyChatMember != nil && h.OnMyChatMember != nil:
+		return h.OnMyChatMember(u.MyChatMember)
+	case u.ChatMember != nil && h.OnChatMember != nil:
+		return h.OnChatMember(u.ChatMember)
+	case u.ChatJoinRequest != nil && h.OnChatJoinRequest != nil:
+		return h.OnChatJoinRequest(u.ChatJoinRequest)
+	case u.ChatBoost != nil && h.OnChatBoost != nil:
+		return h.OnChatBoost(u.ChatBoost)
+	case u.RemovedChatBoost != nil && h.OnRemovedChatBoost != nil:
+		return h.OnRemovedChatBoost(u.RemovedChatBoost)
+	}
+	return nil
 }

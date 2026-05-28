@@ -6,11 +6,12 @@ Welcome, Agent! This guide describes the architecture, design patterns, database
 
 ## 🏗️ Architecture Overview
 
-`tbb` is built on top of the concurrent Telegram Bot library [NicoNex/echotron](https://github.com/NicoNex/echotron) and provides a database-agnostic storage layer.
+`tbb` is built on top of the concurrent Telegram Bot library [gotgbot/v2](https://github.com/PaulSonOfLars/gotgbot) and provides a database-agnostic storage layer with a custom session-based router.
 
 ```mermaid
 graph TD
-    Client[Telegram API] -->|Updates| Dispatcher[echotron.Dispatcher]
+    Client[Telegram API] -->|Updates| Updater[gotgbot.Updater]
+    Updater -->|Dispatch| Dispatcher[tbb.SessionDispatcher]
     Dispatcher -->|Spawn/Route Session| Session[tbb.Bot]
     Session -->|Check Registry| CmdReg[Command Registry]
     Session -->|Update Handlers| Handler[UpdateHandler]
@@ -20,12 +21,12 @@ graph TD
 
 ### Core Components
 
-1. **`TBot` (in [tbb.go](file:///Users/skn/Development/GitHub/tbb/tbb.go))**: The central orchestrator that sets up the user store, logger, global commands, timezone cache, and HTTP webhook/polling server.
-2. **`Bot` (in [bot.go](file:///Users/skn/Development/GitHub/tbb/bot.go))**: Represents an active user session/chat ID. The `echotron.Dispatcher` creates one `Bot` instance per unique `chatID`.
-   - **Session Lifespan**: Governed by `BotSessionTimeout` (in minutes). After this period of inactivity, the session self-destructs (`b.destruct()`) to conserve memory.
+1. **`TBot` (in [tbb.go](file:///Users/skn/Development/GitHub/tbb/tbb.go))**: The central orchestrator that sets up the user store, logger, global commands, timezone cache, and manages the session dispatcher and updater.
+2. **`Bot` (in [bot.go](file:///Users/skn/Development/GitHub/tbb/bot.go))**: Represents an active user session/chat ID. The `TBot`'s session dispatcher handles spawning and routing updates to the correct `Bot` instance.
+   - **Session Lifespan**: Governed by `BotSessionTimeout` (in minutes). After this period of inactivity, the session self-destructs (`b.destruct()`) and is removed from the active sessions map.
    - **User Cache**: Holds the `User` entity, updating fields like profile photo and usernames dynamically every 24 hours (or when specified by `updateDuration`).
 3. **`UserStore` (in [store.go](file:///Users/skn/Development/GitHub/tbb/store.go))**: A storage interface for managing bot users. Defaults to a thread-safe `InMemoryStore`. Developers can plug in their own store implementation (e.g. GORM, MongoDB, or raw SQL) via `WithUserStore(...)`.
-4. **`UpdateHandler` (in [handler.go](file:///Users/skn/Development/GitHub/tbb/handler.go))**: Defines hooks for various Telegram updates (`HandleMessage`, `HandleCallbackQuery`, etc.). Can be overridden globally via functional options.
+4. **`UpdateHandler` (in [handler.go](file:///Users/skn/Development/GitHub/tbb/handler.go))**: Defines a unified entry point (`HandleUpdate`) for processing incoming Telegram updates per session. Can be overridden globally via functional options. Can also be utilized via the helper `RouterUpdateHandler` struct which routes updates to custom callbacks.
 5. **`CommandHandler`**: A specialized interface for handling commands (e.g., `/enable`).
 
 ---
@@ -89,7 +90,7 @@ And register it with `tbb.New(tbb.WithUserStore(myCustomStore))`.
 
 `tbb` uses a functional state machine pattern to handle multi-step interactions.
 
-1. **State Signature**: `type StateFn func(*echotron.Update) StateFn`
+1. **State Signature**: `type StateFn func(*gotgbot.Update) StateFn`
 2. **Execution Flow**:
    - When a command is triggered, its `Handle()` method is executed and returns a `StateFn`.
    - If `StateFn` is non-nil, the session's active state transitions to that function.
@@ -166,7 +167,7 @@ package command
 
 import (
 	"fmt"
-	"github.com/NicoNex/echotron/v3"
+	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/apperia-de/tbb"
 )
 

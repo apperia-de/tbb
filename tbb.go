@@ -1,36 +1,40 @@
 // Package tbb provides a base for creating custom Telegram bots.
-// It can be used to spin up a custom bot in one minute which is capable of
-// handling bot users via an implemented sqlite database,
-// but can easily be switched to use mysql or postgres instead.
+// It is database-agnostic and uses PaulSonOfLars/gotgbot/v2.
 package tbb
 
 import (
 	"context"
 	"crypto/md5"
-	"errors"
 	"fmt"
-	"github.com/NicoNex/echotron/v3"
-	timezone "github.com/evanoberholster/timezoneLookup/v2"
-	"github.com/gabriel-vasile/mimetype"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/PaulSonOfLars/gotgbot/v2"
+	"github.com/PaulSonOfLars/gotgbot/v2/ext"
+	timezone "github.com/evanoberholster/timezoneLookup/v2"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type TBot struct {
-	store  UserStore
-	dsp    *echotron.Dispatcher
-	ctx    context.Context
-	cfg    *Config
-	logger *slog.Logger
-	cmdReg CommandRegistry
-	hFn    UpdateHandlerFn
-	api    echotron.API // Telegram api
-	tzc    *timezone.Timezonecache
-	srv    *http.Server
+	store      UserStore
+	ctx        context.Context
+	cfg        *Config
+	logger     *slog.Logger
+	cmdReg     CommandRegistry
+	hFn        UpdateHandlerFn
+	bot        *gotgbot.Bot
+	updater    *ext.Updater
+	tzc        *timezone.Timezonecache
+	srv        *http.Server
+	sessions   map[int64]*Bot
+	sessionsMu sync.RWMutex
 }
 
 type Option func(*TBot)
@@ -39,11 +43,12 @@ type Option func(*TBot)
 // It uses functional options for configuration.
 func New(opts ...Option) *TBot {
 	tbot := &TBot{
-		ctx:    context.Background(),
-		cmdReg: CommandRegistry{},
-		hFn:    func() UpdateHandler { return &DefaultUpdateHandler{} },
-		logger: nil,
-		tzc:    loadTimezoneCache(),
+		ctx:      context.Background(),
+		cmdReg:   CommandRegistry{},
+		hFn:      func() UpdateHandler { return &DefaultUpdateHandler{} },
+		logger:   nil,
+		tzc:      loadTimezoneCache(),
+		sessions: make(map[int64]*Bot),
 	}
 
 	// Loop through each option
@@ -70,10 +75,12 @@ func New(opts ...Option) *TBot {
 		panic("tbot config is missing telegram bot token")
 	}
 
-	tbot.api = echotron.NewAPI(tbot.cfg.Telegram.BotToken)
-	tbot.dsp = echotron.NewDispatcher(tbot.cfg.Telegram.BotToken, tbot.buildBot(tbot.hFn))
-	if tbot.srv != nil {
-		tbot.dsp.SetHTTPServer(tbot.srv)
+	var err error
+	tbot.bot, err = gotgbot.NewBot(tbot.cfg.Telegram.BotToken, &gotgbot.BotOpts{
+		DisableTokenCheck: true,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to create telegram bot: %v", err))
 	}
 
 	return tbot
@@ -143,7 +150,7 @@ func WithUserStore(store UserStore) Option {
 	}
 }
 
-// WithHandlerFunc option can be used to override the default UpdateHandlerFn for custom echotron.Update message handling.
+// WithHandlerFunc option can be used to override the default UpdateHandlerFn for custom gotgbot.Update message handling.
 func WithHandlerFunc(hFn UpdateHandlerFn) Option {
 	return func(app *TBot) {
 		app.hFn = hFn
@@ -166,63 +173,101 @@ func WithServer(s *http.Server) Option {
 
 // Start starts the Telegram bot server in poll mode
 func (tb *TBot) Start() {
-	var err error
-	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
 
-	if tb.srv == nil {
-		tb.logger.Info("Start dispatcher")
-		tb.logger.Error(tb.dsp.Poll().Error())
-		return
+	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
+		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
+			tb.logger.Error("Dispatcher error", "error", err)
+			return ext.DispatcherActionNoop
+		},
+		MaxRoutines: -1,
+	})
+	dispatcher.AddHandler(sessionDispatcherHandler{tbot: tb})
+
+	tb.updater = ext.NewUpdater(dispatcher, nil)
+
+	tb.logger.Info("Start polling updates")
+	err := tb.updater.StartPolling(tb.bot, &ext.PollingOpts{
+		DropPendingUpdates: true,
+	})
+	if err != nil {
+		panic(err)
 	}
 
-	// If we have a custom web server, we run the polling in a separate go routine.
-	go func() {
-		tb.logger.Info("Start dispatcher")
-		tb.logger.Error(tb.dsp.Poll().Error())
-	}()
+	// Handle OS signals for graceful shutdown
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
+	<-termChan
 
-	go shutdownServerOnSignal(tb.srv)
-
-	tb.logger.Info("Start server")
-	err = tb.srv.ListenAndServe()
-	if !errors.Is(err, http.ErrServerClosed) {
-		tb.logger.Error(err.Error())
-		return
+	tb.logger.Info("Stopping polling updates...")
+	if err := tb.updater.Stop(); err != nil {
+		tb.logger.Error("Failed to stop updater", "error", err)
 	}
-	tb.logger.Info("Server closed")
+	tb.logger.Info("Bot stopped")
 }
 
-// StartWithWebhook starts the Telegram bot server with a given webhook url.
-func (tb *TBot) StartWithWebhook(webhookURL string) {
-	var err error
-	if err = tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
+// StartWithWebhook starts the Telegram bot server with a given webhook url path and listen address.
+func (tb *TBot) StartWithWebhook(webhookPath string, listenAddr string) {
+	if err := tb.SetBotCommands(tb.buildTelegramCommands()); err != nil {
 		tb.logger.Error("Cannot set bot commands!")
 		panic(err)
 	}
-	if webhookURL == "" {
-		panic("webhook url is empty")
+
+	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
+		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
+			tb.logger.Error("Dispatcher error", "error", err)
+			return ext.DispatcherActionNoop
+		},
+		MaxRoutines: -1,
+	})
+	dispatcher.AddHandler(sessionDispatcherHandler{tbot: tb})
+
+	tb.updater = ext.NewUpdater(dispatcher, nil)
+
+	tb.logger.Info("Starting webhook server", "addr", listenAddr, "path", webhookPath)
+	err := tb.updater.StartWebhook(tb.bot, webhookPath, ext.WebhookOpts{
+		ListenAddr: listenAddr,
+	})
+	if err != nil {
+		panic(err)
 	}
 
-	tb.logger.Info(fmt.Sprintf("Start dispatcher and server with webhook: %q", webhookURL))
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
+	<-termChan
 
-	if tb.srv != nil {
-		go shutdownServerOnSignal(tb.srv)
+	tb.logger.Info("Stopping webhook...")
+	if err := tb.updater.Stop(); err != nil {
+		tb.logger.Error("Failed to stop updater", "error", err)
 	}
-
-	err = tb.dsp.ListenWebhook(webhookURL)
-	if !errors.Is(err, http.ErrServerClosed) {
-		tb.logger.Error(err.Error())
-		return
-	}
-	tb.logger.Info("Server closed")
+	tb.logger.Info("Bot stopped")
 }
 
-// API returns the reference to the echotron.API.
-func (tb *TBot) API() echotron.API {
-	return tb.api
+func (tb *TBot) handleUpdate(b *gotgbot.Bot, ctx *ext.Context) error {
+	chatID := getChatID(ctx.Update)
+	if chatID == 0 {
+		tb.logger.Warn("update has no chat ID", "updateID", ctx.UpdateId)
+		return nil
+	}
+
+	tb.sessionsMu.Lock()
+	session, exists := tb.sessions[chatID]
+	if !exists {
+		session = tb.newBot(chatID, tb.logger, tb.hFn)
+		tb.sessions[chatID] = session
+	}
+	tb.sessionsMu.Unlock()
+
+	session.Update(ctx.Update)
+	return nil
+}
+
+// API returns the reference to the gotgbot.Bot API wrapper.
+func (tb *TBot) API() *gotgbot.Bot {
+	return tb.bot
 }
 
 // Config returns the config
@@ -235,36 +280,38 @@ func (tb *TBot) Store() UserStore {
 	return tb.store
 }
 
-// Dispatcher returns the echotron.Dispatcher.
-func (tb *TBot) Dispatcher() *echotron.Dispatcher {
-	return tb.dsp
-}
-
-// Server returns the http.Server.
-func (tb *TBot) Server() *http.Server {
-	return tb.srv
+// Updater returns the gotgbot updater.
+func (tb *TBot) Updater() *ext.Updater {
+	return tb.updater
 }
 
 // DownloadFile downloads a file from Telegram by a given fileID
 func (tb *TBot) DownloadFile(fileID string) (*File, error) {
-	fileIDRes, err := tb.API().GetFile(fileID)
+	fileIDRes, err := tb.bot.GetFile(fileID, nil)
 	if err != nil {
 		return nil, err
 	}
-	tb.logger.Debug(fileIDRes.Description)
+	tb.logger.Debug("GetFile request successful", "filePath", fileIDRes.FilePath)
 
-	fileData, err := tb.API().DownloadFile(fileIDRes.Result.FilePath)
+	photoURL := fileIDRes.URL(tb.bot, nil)
+	fileRes, err := http.Get(photoURL)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = fileRes.Body.Close() }()
+
+	fileData, err := io.ReadAll(fileRes.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	mime := mimetype.Detect(fileData)
 	f := &File{
-		UniqueID:  fileIDRes.Result.FileUniqueID,
+		UniqueID:  fileIDRes.FileUniqueId,
 		Extension: mime.Extension(),
 		MimeType:  mime.String(),
 		Hash:      fmt.Sprintf("%x", md5.Sum(fileData)),
-		Size:      fileIDRes.Result.FileSize,
+		Size:      int64(fileIDRes.FileSize),
 		Data:      fileData,
 	}
 
@@ -273,12 +320,12 @@ func (tb *TBot) DownloadFile(fileID string) (*File, error) {
 
 // SetBotCommands registers the given command list for your Telegram bot.
 // Will delete registered bot commands if parameter bc is nil.
-func (tb *TBot) SetBotCommands(bc []echotron.BotCommand) error {
+func (tb *TBot) SetBotCommands(bc []gotgbot.BotCommand) error {
 	if bc == nil {
-		_, err := tb.api.DeleteMyCommands(nil)
+		_, err := tb.bot.DeleteMyCommands(nil)
 		return err
 	}
-	_, err := tb.api.SetMyCommands(nil, bc...)
+	_, err := tb.bot.SetMyCommands(bc, nil)
 	return err
 }
 
@@ -301,7 +348,7 @@ func (tb *TBot) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 		b.user = &User{ChatID: b.chatID, UserInfo: &UserInfo{}, UserPhoto: &UserPhoto{}}
 	}
 
-	// Create tb new UpdateHandler and set Bot reference back on handler
+	// Create new UpdateHandler and set Bot reference back on handler
 	b.handler = hFn()
 	b.handler.SetBot(b)
 	// Set the self-destruction timer
@@ -309,12 +356,6 @@ func (tb *TBot) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	b.logger.Debug(fmt.Sprintf("New Bot instance started with ChatID=%d", b.chatID))
 
 	return b
-}
-
-func (tb *TBot) buildBot(h UpdateHandlerFn) echotron.NewBotFn {
-	return func(chatId int64) echotron.Bot {
-		return tb.newBot(chatId, tb.logger, h)
-	}
 }
 
 func (tb *TBot) getRegistryCommand(name string) *Command {
@@ -325,12 +366,14 @@ func (tb *TBot) getRegistryCommand(name string) *Command {
 	return &c
 }
 
-func (tb *TBot) buildTelegramCommands() []echotron.BotCommand {
-	var bc []echotron.BotCommand
+func (tb *TBot) buildTelegramCommands() []gotgbot.BotCommand {
+	var bc []gotgbot.BotCommand
 	for _, c := range tb.cmdReg {
 		if c.Name != "" && c.Description != "" {
-			bc = append(bc, echotron.BotCommand{
-				Command:     c.Name,
+			// Strip leading slash for Telegram command settings
+			name := strings.TrimPrefix(c.Name, "/")
+			bc = append(bc, gotgbot.BotCommand{
+				Command:     name,
 				Description: c.Description,
 			})
 		}
@@ -338,14 +381,18 @@ func (tb *TBot) buildTelegramCommands() []echotron.BotCommand {
 	return bc
 }
 
-// shutdownServerOnSignal gracefully shuts down server on SIGINT or SIGTERM
-func shutdownServerOnSignal(srv *http.Server) {
-	termChan := make(chan os.Signal, 1) // Channel for terminating the tbot via os.Interrupt signal
-	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
+type sessionDispatcherHandler struct {
+	tbot *TBot
+}
 
-	<-termChan
-	// Perform some cleanup...
-	if err := srv.Shutdown(context.Background()); err != nil {
-		panic(err)
-	}
+func (h sessionDispatcherHandler) CheckUpdate(b *gotgbot.Bot, ctx *ext.Context) bool {
+	return true
+}
+
+func (h sessionDispatcherHandler) HandleUpdate(b *gotgbot.Bot, ctx *ext.Context) error {
+	return h.tbot.handleUpdate(b, ctx)
+}
+
+func (h sessionDispatcherHandler) Name() string {
+	return "tbb.SessionDispatcherHandler"
 }

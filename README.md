@@ -1,8 +1,9 @@
 # Telegram Bot TBot (tbb)
 
-Tbb aims to provide tb starting point for building Telegram bots in go.
-The Telegram Bot TBot is based on the concurrent library [NicoNex/echotron](https://github.com/NicoNex/echotron).
-To spin up tb bot on your own see the examples section for details.
+Tbb aims to provide a starting point for building Telegram bots in Go.
+The Telegram Bot TBot is based on the modern, code-generated Telegram Bot API library [gotgbot/v2](https://github.com/PaulSonOfLars/gotgbot).
+To spin up a bot on your own, see the examples section for details.
+
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/apperia-de/tbb)](https://goreportcard.com/report/github.com/apperia-de/tbb)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/apperia-de/tbb?style=flat)
@@ -89,6 +90,60 @@ telegram:
   botToken: "YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
 # Note: database type and connection parameters are omitted as we use default InMemoryStore
 botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.
+```
+
+## How to use the newest `gotgbot` API
+
+Since `tbb` exposes the raw `*gotgbot.Bot` client from `gotgbot/v2`, you can use any API method defined in the Telegram Bot API specification directly:
+
+### 1. In a Command Handler
+```go
+func (c *MyCommand) Handle() tbb.StateFn {
+    // Access the gotgbot Bot API client directly:
+    bot := c.Bot().API()
+
+    // Call SendMessage or any other standard API wrapper method:
+    _, err := bot.SendMessage(c.Bot().ChatID(), "Hello world!", &gotgbot.SendMessageOpts{
+        ParseMode: "HTML",
+    })
+    if err != nil {
+        c.Bot().Log().Error("failed to send message", "error", err)
+    }
+
+    return nil
+}
+```
+
+### 2. In a Custom Update Handler
+```go
+func (h *myBotHandler) HandleUpdate(u *gotgbot.Update) tbb.StateFn {
+    if u.Message != nil {
+        bot := h.Bot().API()
+        // Echo back the message using raw API:
+        _, _ = bot.SendMessage(u.Message.Chat.Id, "Echo: " + u.Message.Text, nil)
+    }
+    return nil
+}
+```
+
+### 3. Using the `RouterUpdateHandler` Helper
+If you prefer not to write type-switches, you can configure granular callbacks using the `RouterUpdateHandler` helper:
+```go
+app := tbb.New(
+    tbb.WithConfig(cfg),
+    tbb.WithHandlerFunc(func() tbb.UpdateHandler {
+        return &tbb.RouterUpdateHandler{
+            OnMessage: func(m *gotgbot.Message) tbb.StateFn {
+                // Handle message update
+                return nil
+            },
+            OnCallbackQuery: func(q *gotgbot.CallbackQuery) tbb.StateFn {
+                // Handle callback query update
+                return nil
+            },
+        }
+    }),
+)
 ```
 
 > For an example of how to implement your own UpdateHandler see `cmd/example/main.go`

@@ -24,6 +24,6 @@ func (c *Help) Handle() tbb.StateFn {
 		name = c.Bot().User().Username
 	}
 
-	_, _ = c.Bot().API().SendMessage(fmt.Sprintf(helpMessage, name), c.Bot().ChatID(), nil)
+	_, _ = c.Bot().API().SendMessage(c.Bot().ChatID(), fmt.Sprintf(helpMessage, name), nil)
 	return nil
 }

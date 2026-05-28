@@ -2,7 +2,7 @@ package tbb
 
 import (
 	"encoding/json"
-	"github.com/NicoNex/echotron/v3"
+	"github.com/PaulSonOfLars/gotgbot/v2"
 	"log/slog"
 	"strings"
 )
@@ -22,23 +22,68 @@ type InlineKeyboardButton struct {
 	Data string `json:"data"`
 }
 
-// GetUserFromUpdate returns the echotron.User from a given echotron.Update
-func GetUserFromUpdate(u *echotron.Update) echotron.User {
+// getChatID extracts the unique chat ID from a given gotgbot.Update
+func getChatID(u *gotgbot.Update) int64 {
 	switch {
 	case u.Message != nil:
-		return *u.Message.From
+		return u.Message.Chat.Id
 	case u.EditedMessage != nil:
-		return *u.EditedMessage.From
+		return u.EditedMessage.Chat.Id
 	case u.ChannelPost != nil:
-		return *u.ChannelPost.From
+		return u.ChannelPost.Chat.Id
 	case u.EditedChannelPost != nil:
-		return *u.EditedChannelPost.From
+		return u.EditedChannelPost.Chat.Id
 	case u.InlineQuery != nil:
-		return *u.InlineQuery.From
+		return u.InlineQuery.From.Id
 	case u.ChosenInlineResult != nil:
-		return *u.ChosenInlineResult.From
+		return u.ChosenInlineResult.From.Id
 	case u.CallbackQuery != nil:
-		return *u.CallbackQuery.From
+		if u.CallbackQuery.Message != nil {
+			return u.CallbackQuery.Message.GetChat().Id
+		}
+		return u.CallbackQuery.From.Id
+	case u.ShippingQuery != nil:
+		return u.ShippingQuery.From.Id
+	case u.PreCheckoutQuery != nil:
+		return u.PreCheckoutQuery.From.Id
+	case u.PollAnswer != nil:
+		return u.PollAnswer.User.Id
+	case u.MyChatMember != nil:
+		return u.MyChatMember.Chat.Id
+	case u.ChatMember != nil:
+		return u.ChatMember.Chat.Id
+	case u.ChatJoinRequest != nil:
+		return u.ChatJoinRequest.Chat.Id
+	default:
+		return 0
+	}
+}
+
+// GetUserFromUpdate returns the gotgbot.User from a given gotgbot.Update
+func GetUserFromUpdate(u *gotgbot.Update) gotgbot.User {
+	switch {
+	case u.Message != nil:
+		if u.Message.From != nil {
+			return *u.Message.From
+		}
+	case u.EditedMessage != nil:
+		if u.EditedMessage.From != nil {
+			return *u.EditedMessage.From
+		}
+	case u.ChannelPost != nil:
+		if u.ChannelPost.From != nil {
+			return *u.ChannelPost.From
+		}
+	case u.EditedChannelPost != nil:
+		if u.EditedChannelPost.From != nil {
+			return *u.EditedChannelPost.From
+		}
+	case u.InlineQuery != nil:
+		return u.InlineQuery.From
+	case u.ChosenInlineResult != nil:
+		return u.ChosenInlineResult.From
+	case u.CallbackQuery != nil:
+		return u.CallbackQuery.From
 	case u.ShippingQuery != nil:
 		return u.ShippingQuery.From
 	case u.PreCheckoutQuery != nil:
@@ -49,13 +94,12 @@ func GetUserFromUpdate(u *echotron.Update) echotron.User {
 		return u.ChatMember.From
 	case u.ChatJoinRequest != nil:
 		return u.ChatJoinRequest.From
-	default:
-		return echotron.User{ID: u.ChatID()}
 	}
+	return gotgbot.User{Id: getChatID(u)}
 }
 
-// GetChatTypeFromUpdate returns the ChatType from a given echotron.Update
-func GetChatTypeFromUpdate(u *echotron.Update) ChatType {
+// GetChatTypeFromUpdate returns the ChatType from a given gotgbot.Update
+func GetChatTypeFromUpdate(u *gotgbot.Update) ChatType {
 	convertToChatType := func(input string) ChatType {
 		switch ChatType(input) {
 		case ChatTypeChannel, ChatTypeGroup, ChatTypeSuperGroup, ChatTypePrivate:
@@ -88,10 +132,10 @@ func GetChatTypeFromUpdate(u *echotron.Update) ChatType {
 }
 
 // BuildInlineKeyboardButtonRow helper function for creating Telegram inline keyboards
-func BuildInlineKeyboardButtonRow(buttons []InlineKeyboardButton) []echotron.InlineKeyboardButton {
-	var res []echotron.InlineKeyboardButton
+func BuildInlineKeyboardButtonRow(buttons []InlineKeyboardButton) []gotgbot.InlineKeyboardButton {
+	var res []gotgbot.InlineKeyboardButton
 	for _, b := range buttons {
-		res = append(res, echotron.InlineKeyboardButton{Text: b.Text, CallbackData: b.Data})
+		res = append(res, gotgbot.InlineKeyboardButton{Text: b.Text, CallbackData: b.Data})
 	}
 	return res
 }

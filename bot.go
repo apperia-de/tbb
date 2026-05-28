@@ -2,10 +2,8 @@ package tbb
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/NicoNex/echotron/v3"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/PaulSonOfLars/gotgbot/v2"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	updateDuration = time.Hour * 24
 )
 
-type StateFn func(*echotron.Update) StateFn
+type StateFn func(*gotgbot.Update) StateFn
 
 type Bot struct {
 	tbot    *TBot // Backreference to TBot instance
@@ -59,8 +59,8 @@ func (b *Bot) Log() *slog.Logger {
 	return b.logger
 }
 
-// API returns the echotron.API
-func (b *Bot) API() echotron.API {
+// API returns the gotgbot.Bot API wrapper
+func (b *Bot) API() *gotgbot.Bot {
 	return b.tbot.API()
 }
 
@@ -69,7 +69,7 @@ func (b *Bot) TBot() *TBot {
 	return b.tbot
 }
 
-// Store returns the user store.
+// Store returns the user store
 func (b *Bot) Store() UserStore {
 	return b.tbot.Store()
 }
@@ -80,13 +80,23 @@ func (b *Bot) IsUserActive() bool {
 }
 
 // ReplaceMessage replaces the given CallbackQuery message with new Text and Keyboard
-func (b *Bot) ReplaceMessage(q *echotron.CallbackQuery, text string, buttons [][]echotron.InlineKeyboardButton) {
-	_, _ = b.tbot.API().EditMessageText(text, echotron.NewMessageID(b.chatID, q.Message.ID), &echotron.MessageTextOptions{ReplyMarkup: echotron.InlineKeyboardMarkup{InlineKeyboard: buttons}})
+func (b *Bot) ReplaceMessage(q *gotgbot.CallbackQuery, text string, buttons [][]gotgbot.InlineKeyboardButton) {
+	if q.Message == nil {
+		return
+	}
+	_, _, _ = b.tbot.bot.EditMessageText(text, &gotgbot.EditMessageTextOpts{
+		ChatId:      b.chatID,
+		MessageId:   q.Message.GetMessageId(),
+		ReplyMarkup: gotgbot.InlineKeyboardMarkup{InlineKeyboard: buttons},
+	})
 }
 
 // DeleteMessage deletes the given CallbackQuery message
-func (b *Bot) DeleteMessage(q *echotron.CallbackQuery) {
-	_, _ = b.tbot.API().DeleteMessage(b.chatID, q.Message.ID)
+func (b *Bot) DeleteMessage(q *gotgbot.CallbackQuery) {
+	if q.Message == nil {
+		return
+	}
+	_, _ = b.tbot.bot.DeleteMessage(b.chatID, q.Message.GetMessageId(), nil)
 }
 
 // EnableUser enables the current user and updates the database
@@ -116,7 +126,7 @@ func (b *Bot) GetUsersTimezoneOffset() (int, error) {
 }
 
 // Update is called whenever a Telegram update occurs
-func (b *Bot) Update(u *echotron.Update) {
+func (b *Bot) Update(u *gotgbot.Update) {
 	defer b.logRecoveredPanic()
 
 	b.resetSessionTimeout()
@@ -124,8 +134,10 @@ func (b *Bot) Update(u *echotron.Update) {
 	cmd := b.getCommand(u)
 	isPublicFlow := (cmd != nil && cmd.Public) || (b.state != nil && b.cmd != nil && b.cmd.Public)
 
+	chatID := getChatID(u)
+
 	// Allow only users from AllowedChatIDs to use the bot
-	if len(b.tbot.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.tbot.cfg.AllowedChatIDs, u.ChatID()) && !isPublicFlow {
+	if len(b.tbot.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.tbot.cfg.AllowedChatIDs, chatID) && !isPublicFlow {
 		if b.user.UserInfo.IsActive {
 			b.DisableUser()
 			_ = b.Store().Save(b.user)
@@ -149,14 +161,26 @@ func (b *Bot) Update(u *echotron.Update) {
 
 	// This kind of message has precedence because it disables or enables the Bot
 	if u.MyChatMember != nil {
-		b.state = b.handler.HandleMyChatMember(*u.MyChatMember)
+		status := u.MyChatMember.NewChatMember.GetStatus()
+		switch status {
+		case memberStatusJoin:
+			b.logger.Info("Bot unblocked by user", "status", status, "user", b.user.Firstname)
+			b.EnableUser()
+		case memberStatusLeave:
+			b.logger.Info("Bot blocked by user", "status", status, "user", b.user.Firstname)
+			b.DisableUser()
+			_ = b.Store().Save(b.user)
+		default:
+			b.logger.Info("MyChatMember.Status", "status", status, "user", u.MyChatMember.From.Username)
+		}
+		b.state = b.handler.HandleUpdate(u)
 		return
 	}
 
 	// If bot state is nil, we set the initial state in relation to the received update
 	if b.state == nil {
 		b.cmd = nil
-		b.state = b.handleInitialState(u)
+		b.state = b.handler.HandleUpdate(u)
 		return
 	}
 
@@ -166,7 +190,7 @@ func (b *Bot) Update(u *echotron.Update) {
 func (b *Bot) resetSessionTimeout() {
 	st := time.Duration(b.tbot.cfg.BotSessionTimeout) * time.Minute
 	b.dTimer.Reset(st)
-	b.logger.Debug(fmt.Sprintf("Bot istance with ChatID=%d will exire at %s", b.chatID, time.Now().Add(st)))
+	b.logger.Debug(fmt.Sprintf("Bot instance with ChatID=%d will expire at %s", b.chatID, time.Now().Add(st)))
 }
 
 func (b *Bot) logRecoveredPanic() {
@@ -175,46 +199,8 @@ func (b *Bot) logRecoveredPanic() {
 	}
 }
 
-func (b *Bot) handleInitialState(u *echotron.Update) StateFn {
-	switch {
-	case u.Message != nil:
-		return b.handler.HandleMessage(*u.Message)
-	case u.EditedMessage != nil:
-		return b.handler.HandleEditedMessage(*u.EditedMessage)
-	case u.ChannelPost != nil:
-		return b.handler.HandleChannelPost(*u.ChannelPost)
-	case u.EditedChannelPost != nil:
-		return b.handler.HandleEditedChannelPost(*u.EditedChannelPost)
-	case u.InlineQuery != nil:
-		return b.handler.HandleInlineQuery(*u.InlineQuery)
-	case u.ChosenInlineResult != nil:
-		return b.handler.HandleChosenInlineResult(*u.ChosenInlineResult)
-	case u.CallbackQuery != nil:
-		return b.handler.HandleCallbackQuery(*u.CallbackQuery)
-	case u.ShippingQuery != nil:
-		return b.handler.HandleShippingQuery(*u.ShippingQuery)
-	case u.PreCheckoutQuery != nil:
-		return b.handler.HandlePreCheckoutQuery(*u.PreCheckoutQuery)
-	case u.ChatMember != nil:
-		return b.handler.HandleChatMember(*u.ChatMember)
-	case u.ChatJoinRequest != nil:
-		return b.handler.HandleChatJoinRequest(*u.ChatJoinRequest)
-	default:
-		return b.handleUnknown(u)
-	}
-}
-
-func (b *Bot) handleUnknown(u *echotron.Update) StateFn {
-	jsonStr, err := json.Marshal(u)
-	if err != nil {
-		b.logger.Error(err.Error())
-	}
-	b.logger.Error("update has an unknown type", "update", string(jsonStr))
-	return nil
-}
-
 // Returns the command slice if available or nil if no command exists
-func (b *Bot) getCommand(u *echotron.Update) *Command {
+func (b *Bot) getCommand(u *gotgbot.Update) *Command {
 	var text string
 	switch {
 	case u.Message != nil:
@@ -238,7 +224,7 @@ func (b *Bot) getCommand(u *echotron.Update) *Command {
 }
 
 // updateUser updates the user infos with the current user data from Telegram
-func (b *Bot) updateUser(u *echotron.Update) error {
+func (b *Bot) updateUser(u *gotgbot.Update) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -258,7 +244,6 @@ func (b *Bot) updateUser(u *echotron.Update) error {
 	b.user.CanReadAllGroupMessages = user.CanReadAllGroupMessages
 	b.user.SupportsInlineQueries = user.SupportsInlineQueries
 	b.user.CanConnectToBusiness = user.CanConnectToBusiness
-	b.user.HasMainWebApp = user.HasMainWebApp
 
 	if b.user.UserPhoto, err = b.fetchCurrentUserPhoto(); err != nil {
 		// Warn if a user photo cannot be updated but proceed anyway
@@ -270,7 +255,7 @@ func (b *Bot) updateUser(u *echotron.Update) error {
 
 // updateUserData updates the DB user data with data from Telegram update only if the
 // chatType is "private" and more than dur time has passed since the last update.
-func (b *Bot) updateUserData(u *echotron.Update, dur time.Duration) {
+func (b *Bot) updateUserData(u *gotgbot.Update, dur time.Duration) {
 	// Only private user chats will be saved to the database because
 	// we don't want to save channel or group infos as users in the database.
 	if GetChatTypeFromUpdate(u) != ChatTypePrivate {
@@ -288,7 +273,9 @@ func (b *Bot) updateUserData(u *echotron.Update, dur time.Duration) {
 }
 
 func (b *Bot) destruct() {
-	b.tbot.dsp.DelSession(b.chatID)
+	b.tbot.sessionsMu.Lock()
+	delete(b.tbot.sessions, b.chatID)
+	b.tbot.sessionsMu.Unlock()
 	b.logger.Info(fmt.Sprintf("Deleted bot instance with ChatID=%d", b.chatID))
 }
 
@@ -296,35 +283,32 @@ func (b *Bot) destruct() {
 func (b *Bot) fetchCurrentUserPhoto() (*UserPhoto, error) {
 	userPhoto := &UserPhoto{}
 
-	res, err := b.tbot.api.GetUserProfilePhotos(b.user.ChatID, &echotron.UserProfileOptions{Offset: 0, Limit: 1})
+	res, err := b.tbot.bot.GetUserProfilePhotos(b.user.ChatID, &gotgbot.GetUserProfilePhotosOpts{Offset: 0, Limit: 1})
 	if err != nil {
 		return userPhoto, err
 	}
 
-	if !res.Ok {
-		return userPhoto, errors.New("could not get user profile")
-	}
+	b.logger.Debug("GetUserProfilePhotos request successful!", "totalPhotos", res.TotalCount)
 
-	b.logger.Debug("GetUserProfilePhotos request successful!", "totalPhotos", res.Result.TotalCount)
-
-	if len(res.Result.Photos) == 0 {
+	if len(res.Photos) == 0 {
 		return userPhoto, nil
 	}
 
-	newestPhotoSizes := res.Result.Photos[0]
+	newestPhotoSizes := res.Photos[0]
 	biggestPhotoSize := newestPhotoSizes[len(newestPhotoSizes)-1]
 
-	fileID, err := b.tbot.api.GetFile(biggestPhotoSize.FileID)
+	fileID, err := b.tbot.bot.GetFile(biggestPhotoSize.FileId, nil)
 	if err != nil {
 		return userPhoto, err
 	}
 
-	photoURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", b.tbot.cfg.Telegram.BotToken, fileID.Result.FilePath)
-	b.logger.Debug(fileID.Result.FilePath)
+	photoURL := fileID.URL(b.tbot.bot, nil)
+	b.logger.Debug(fileID.FilePath)
 	fileRes, err := http.Get(photoURL)
 	if err != nil {
 		return userPhoto, err
 	}
+	defer func() { _ = fileRes.Body.Close() }()
 
 	data, err := io.ReadAll(fileRes.Body)
 	if err != nil {
@@ -335,13 +319,13 @@ func (b *Bot) fetchCurrentUserPhoto() (*UserPhoto, error) {
 
 	userPhoto = &UserPhoto{
 		UserID:       b.user.ID,
-		FileID:       biggestPhotoSize.FileID,
-		FileUniqueID: biggestPhotoSize.FileUniqueID,
-		FileSize:     biggestPhotoSize.FileSize,
+		FileID:       biggestPhotoSize.FileId,
+		FileUniqueID: biggestPhotoSize.FileUniqueId,
+		FileSize:     int(biggestPhotoSize.FileSize),
 		FileHash:     fmt.Sprintf("%x", md5.Sum(data)),
 		FileData:     data,
-		Width:        biggestPhotoSize.Width,
-		Height:       biggestPhotoSize.Height,
+		Width:        int(biggestPhotoSize.Width),
+		Height:       int(biggestPhotoSize.Height),
 	}
 
 	return userPhoto, nil

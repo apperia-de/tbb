@@ -11,6 +11,6 @@ type ID struct {
 
 func (c *ID) Handle() tbb.StateFn {
 	msg := fmt.Sprintf("Your Telegram Chat ID is: %d", c.Bot().ChatID())
-	_, _ = c.Bot().API().SendMessage(msg, c.Bot().ChatID(), nil)
+	_, _ = c.Bot().API().SendMessage(c.Bot().ChatID(), msg, nil)
 	return nil
 }

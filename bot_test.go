@@ -1,7 +1,7 @@
 package tbb
 
 import (
-	"github.com/NicoNex/echotron/v3"
+	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -13,18 +13,24 @@ func TestBot_Update(t *testing.T) {
 		cfg.AllowedChatIDs = []int64{}
 		tbot := New(WithConfig(cfg))
 		bot := tbot.newBot(99999999, tbot.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
-		u := &echotron.Update{
-			Message: &echotron.Message{
-				Chat: echotron.Chat{
+		u := &gotgbot.Update{
+			Message: &gotgbot.Message{
+				Chat: gotgbot.Chat{
 					Type:      "private",
 					Username:  "test_user",
 					FirstName: "test",
 					LastName:  "user",
-					ID:        99999999,
+					Id:        99999999,
+				},
+				From: &gotgbot.User{
+					Id:        99999999,
+					Username:  "test_user",
+					FirstName: "test",
+					LastName:  "user",
 				},
 				Text: "/test_command",
 			},
-			ID: 123456,
+			UpdateId: 123456,
 		}
 		bot.EnableUser()
 		bot.user.UpdatedAt = time.Now()
@@ -48,18 +54,24 @@ func TestBot_Update(t *testing.T) {
 		tbot := New(WithConfig(cfg), WithCommands(commands))
 		bot := tbot.newBot(99999999, tbot.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
 
-		u := &echotron.Update{
-			Message: &echotron.Message{
-				Chat: echotron.Chat{
+		u := &gotgbot.Update{
+			Message: &gotgbot.Message{
+				Chat: gotgbot.Chat{
 					Type:      "private",
 					Username:  "test_user",
 					FirstName: "test",
 					LastName:  "user",
-					ID:        99999999,
+					Id:        99999999,
+				},
+				From: &gotgbot.User{
+					Id:        99999999,
+					Username:  "test_user",
+					FirstName: "test",
+					LastName:  "user",
 				},
 				Text: "/test_command",
 			},
-			ID: 123456,
+			UpdateId: 123456,
 		}
 		bot.EnableUser()
 		bot.user.UpdatedAt = time.Now()
@@ -83,18 +95,24 @@ func TestBot_Update(t *testing.T) {
 		tbot := New(WithConfig(cfg), WithCommands(commands))
 		bot := tbot.newBot(99999999, tbot.logger.WithGroup("bot"), func() UpdateHandler { return &DefaultUpdateHandler{} })
 
-		u := &echotron.Update{
-			Message: &echotron.Message{
-				Chat: echotron.Chat{
+		u := &gotgbot.Update{
+			Message: &gotgbot.Message{
+				Chat: gotgbot.Chat{
 					Type:      "private",
 					Username:  "test_user",
 					FirstName: "test",
 					LastName:  "user",
-					ID:        99999999,
+					Id:        99999999,
+				},
+				From: &gotgbot.User{
+					Id:        99999999,
+					Username:  "test_user",
+					FirstName: "test",
+					LastName:  "user",
 				},
 				Text: "/test_command",
 			},
-			ID: 123456,
+			UpdateId: 123456,
 		}
 		bot.EnableUser()
 		bot.user.UpdatedAt = time.Now()

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/NicoNex/echotron/v3"
+	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/apperia-de/tbb"
 	"github.com/apperia-de/tbb/pkg/command"
 )
@@ -15,17 +15,20 @@ type myBotHandler struct {
 	tbb.DefaultUpdateHandler
 }
 
-func (h *myBotHandler) HandleMessage(m echotron.Message) tbb.StateFn {
-	if m.Location != nil {
-		tzi, err := h.Bot().TBot().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
-		if err != nil {
-			h.Bot().Log().Error(err.Error())
+func (h *myBotHandler) HandleUpdate(u *gotgbot.Update) tbb.StateFn {
+	if u.Message != nil {
+		m := u.Message
+		if m.Location != nil {
+			tzi, err := h.Bot().TBot().GetTimezoneInfo(m.Location.Latitude, m.Location.Longitude)
+			if err != nil {
+				h.Bot().Log().Error(err.Error())
+				return nil
+			}
+			_, _ = h.Bot().API().SendMessage(m.Chat.Id, "Got a location: ```json\n"+tbb.PrintAsJson(tzi, true)+"\n```", &gotgbot.SendMessageOpts{ParseMode: "MarkdownV2"})
 			return nil
 		}
-		_, _ = h.Bot().API().SendMessage("Got a location: ```json\n"+tbb.PrintAsJson(tzi, true)+"\n```", m.From.ID, &echotron.MessageOptions{ParseMode: echotron.MarkdownV2})
-		return nil
+		_, _ = h.Bot().API().SendMessage(m.Chat.Id, "Echo: "+m.Text, nil)
 	}
-	_, _ = h.Bot().API().SendMessage("Echo: "+m.Text, m.From.ID, nil)
 	return nil
 }
 

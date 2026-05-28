@@ -18,7 +18,6 @@ type User struct {
 	CanReadAllGroupMessages bool       `json:"canReadAllGroupMessages,omitempty"`
 	SupportsInlineQueries   bool       `json:"supportsInlineQueries,omitempty"`
 	CanConnectToBusiness    bool       `json:"canConnectToBusiness,omitempty"`
-	HasMainWebApp           bool       `json:"hasMainWebApp,omitempty"`
 	UserInfo                *UserInfo  `json:"userInfo,omitempty"`
 	UserPhoto               *UserPhoto `json:"-"`
 	CreatedAt               time.Time
