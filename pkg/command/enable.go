@@ -12,7 +12,7 @@ type Enable struct {
 
 func (c *Enable) Handle() tbb.StateFn {
 	c.Bot().EnableUser()
-	c.Bot().DB().Save(c.Bot().User())
+	_ = c.Bot().Store().Save(c.Bot().User())
 
 	if c.Bot().User().UserInfo.ZoneName == "" {
 		var buttons [][]echotron.InlineKeyboardButton
@@ -81,7 +81,7 @@ func (c *Enable) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 	user.UserInfo.ZoneName = tzi.ZoneName
 	user.UserInfo.IsDST = tzi.IsDST
 	user.UserInfo.Offset = tzi.Offset
-	c.Bot().DB().Save(user)
+	_ = c.Bot().Store().Save(user)
 
 	return nil
 }

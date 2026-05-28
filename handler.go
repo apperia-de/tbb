@@ -15,6 +15,7 @@ type Command struct {
 	Params      []string
 	Data        any
 	Handler     CommandHandler
+	Public      bool
 }
 
 type CommandHandler interface {
@@ -140,7 +141,7 @@ func (h *DefaultUpdateHandler) HandleMyChatMember(c echotron.ChatMemberUpdated) 
 		// User blocked the Bot
 		h.bot.Log().Info("Bot blocked by user", "status", status, "user", h.bot.user.Firstname)
 		h.bot.DisableUser()
-		h.bot.DB().Save(h.bot.user)
+		_ = h.bot.Store().Save(h.bot.user)
 	default:
 		// Unknown
 		h.bot.Log().Info("MyChatMember.Status", "status", status, "user", c.From)

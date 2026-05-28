@@ -15,41 +15,53 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic create new tbot without config", func(t *testing.T) {
+	t.Run("should panic create new tbot without token", func(t *testing.T) {
 		assert.Panics(t, func() { tbb.New() })
 	})
 
 	t.Run("should create new tbot with custom config", func(t *testing.T) {
 		type CustomConfig struct {
-			Version   string `yaml:"version"`
-			Username  string `yaml:"username"`
-			Password  string `yaml:"password"`
-			Blacklist []int  `yaml:"blacklist"`
+			tbb.Config `yaml:",inline"`
+			Version    string `yaml:"version"`
+			Username   string `yaml:"username"`
 		}
 
-		expected := CustomConfig{
-			Version:   "v0.1.0",
-			Username:  "me",
-			Password:  "keins",
-			Blacklist: []int{1, 2, 3},
+		customCfg := CustomConfig{
+			Config: tbb.Config{
+				Telegram: struct {
+					BotToken string `yaml:"botToken"`
+				}{BotToken: "EXAMPLE"},
+			},
+			Version:  "v0.1.0",
+			Username: "me",
 		}
 
-		customCfg := tbb.LoadCustomConfig[CustomConfig]("test/data/test.custom.config.yml")
-
-		tbot := tbb.New(tbb.WithConfig(customCfg))
+		tbot := tbb.New(tbb.WithConfig(&customCfg.Config))
 		assert.NotNil(t, tbot)
-		assert.Equal(t, expected, customCfg.CustomData)
 	})
 }
 
 func ExampleNew() {
 	type CustomConfig struct {
-		Version   string   `yaml:"version"`
-		Blacklist []string `yaml:"blacklist"`
+		tbb.Config `yaml:",inline"`
+		Version    string   `yaml:"version"`
+		Blacklist  []string `yaml:"blacklist"`
 	}
 
-	cfg := tbb.LoadCustomConfig[CustomConfig]("config.yml")
+	// Developer can load and parse their configuration directly:
+	// data, _ := os.ReadFile("config.yml")
+	// var cfg CustomConfig
+	// yaml.Unmarshal(data, &cfg)
 
-	tbot := tbb.New(tbb.WithConfig(cfg))
+	cfg := CustomConfig{
+		Config: tbb.Config{
+			Telegram: struct {
+				BotToken string `yaml:"botToken"`
+			}{BotToken: "YOUR_TELEGRAM_BOT_TOKEN"},
+		},
+	}
+
+	tbot := tbb.New(tbb.WithConfig(&cfg.Config))
 	tbot.Start()
 }
+

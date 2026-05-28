@@ -12,7 +12,6 @@ import (
 	"github.com/NicoNex/echotron/v3"
 	timezone "github.com/evanoberholster/timezoneLookup/v2"
 	"github.com/gabriel-vasile/mimetype"
-	"gorm.io/gorm"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,7 +21,7 @@ import (
 )
 
 type TBot struct {
-	db     *DB
+	store  UserStore
 	dsp    *echotron.Dispatcher
 	ctx    context.Context
 	cfg    *Config
@@ -53,7 +52,7 @@ func New(opts ...Option) *TBot {
 	}
 
 	if tbot.cfg == nil {
-		panic("tbot config is missing")
+		tbot.cfg = &Config{}
 	}
 
 	if tbot.logger == nil {
@@ -63,16 +62,18 @@ func New(opts ...Option) *TBot {
 		}))
 	}
 
-	tbot.db = NewDB(tbot.cfg, &gorm.Config{FullSaveAssociations: true})
+	if tbot.store == nil {
+		tbot.store = NewInMemoryStore()
+	}
+
+	if tbot.cfg.Telegram.BotToken == "" {
+		panic("tbot config is missing telegram bot token")
+	}
+
 	tbot.api = echotron.NewAPI(tbot.cfg.Telegram.BotToken)
 	tbot.dsp = echotron.NewDispatcher(tbot.cfg.Telegram.BotToken, tbot.buildBot(tbot.hFn))
 	if tbot.srv != nil {
 		tbot.dsp.SetHTTPServer(tbot.srv)
-	}
-
-	// Initialize database tables
-	if err := tbot.db.AutoMigrate(&User{}, &UserInfo{}, &UserPhoto{}); err != nil {
-		panic(err)
 	}
 
 	return tbot
@@ -92,6 +93,53 @@ func WithConfig(cfg *Config) Option {
 func WithCommands(commands []Command) Option {
 	return func(app *TBot) {
 		app.cmdReg = buildCommandRegistry(commands)
+	}
+}
+
+// WithToken sets the Telegram bot token configuration directly.
+func WithToken(token string) Option {
+	return func(app *TBot) {
+		if app.cfg == nil {
+			app.cfg = &Config{}
+		}
+		app.cfg.Telegram.BotToken = token
+	}
+}
+
+// WithAllowedChatIDs sets the AllowedChatIDs directly.
+func WithAllowedChatIDs(ids []int64) Option {
+	return func(app *TBot) {
+		if app.cfg == nil {
+			app.cfg = &Config{}
+		}
+		app.cfg.AllowedChatIDs = ids
+	}
+}
+
+// WithSessionTimeout sets the bot session timeout in minutes.
+func WithSessionTimeout(minutes int) Option {
+	return func(app *TBot) {
+		if app.cfg == nil {
+			app.cfg = &Config{}
+		}
+		app.cfg.BotSessionTimeout = minutes
+	}
+}
+
+// WithLogLevel sets the logging level.
+func WithLogLevel(level string) Option {
+	return func(app *TBot) {
+		if app.cfg == nil {
+			app.cfg = &Config{}
+		}
+		app.cfg.LogLevel = level
+	}
+}
+
+// WithUserStore configures a custom user store implementation.
+func WithUserStore(store UserStore) Option {
+	return func(app *TBot) {
+		app.store = store
 	}
 }
 
@@ -182,9 +230,9 @@ func (tb *TBot) Config() *Config {
 	return tb.cfg
 }
 
-// DB returns the database handle for the bot so that the database can easily be adjusted and extended.
-func (tb *TBot) DB() *DB {
-	return tb.db
+// Store returns the user store.
+func (tb *TBot) Store() UserStore {
+	return tb.store
 }
 
 // Dispatcher returns the echotron.Dispatcher.
@@ -246,7 +294,7 @@ func (tb *TBot) newBot(chatID int64, l *slog.Logger, hFn UpdateHandlerFn) *Bot {
 	}
 
 	var err error
-	b.user, err = tb.DB().FindUserByChatID(b.chatID)
+	b.user, err = tb.Store().FindUserByChatID(b.chatID)
 	if err != nil {
 		b.logger.Warn(err.Error())
 		b.logger.Info(fmt.Sprintf("Creating new user with ChatID=%d", b.chatID))

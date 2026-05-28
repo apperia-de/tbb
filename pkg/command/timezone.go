@@ -37,6 +37,6 @@ func (c *Timezone) awaitUserLocation(u *echotron.Update) tbb.StateFn {
 
 	user := c.Bot().User()
 	user.UserInfo.TimeZoneInfo = *tzi
-	c.Bot().DB().Save(user)
+	_ = c.Bot().Store().Save(user)
 	return nil
 }

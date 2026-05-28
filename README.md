@@ -10,14 +10,15 @@ To spin up tb bot on your own see the examples section for details.
 
 - Starting point for your own Telegram bot.
 - Easily extendable.
-- Implements Telegram bot user handling in either sqlite (default), mysql or postgres.
-- Time zone handling by coordinates: Can use tb location message from tb user to set the current user time zone and offset from UTC.
+- Database-agnostic: Implements a database-agnostic `UserStore` interface, defaulting to a zero-configuration thread-safe `InMemoryStore`.
+- Public Commands: Allows specific commands to be marked as public, bypassing `AllowedChatIDs` checks.
+- Time zone handling by coordinates: Can use the location message from the user to set the current user time zone and offset from UTC.
 
 ## How to use tbb
 
-1. Create tb new go project by `go mod init`.
+1. Create a new go project by `go mod init`.
 2. Run `go get github.com/apperia-de/tbb`.
-3. Create tb new file `config.yml` with the contents from `example.config.yml`.
+3. Create a new file `config.yml` with the contents from `example.config.yml`.
 4. Adjust values to your needs, especially provide your **Telegram.BotToken**, which you may get from [@botfather](https://telegram.me/botfather) bot.
 5. See example.
 
@@ -30,12 +31,12 @@ package main
 
 import (
 	"github.com/apperia-de/tbb"
-	"github.com/apperia-de/tbb/command"
+	"github.com/apperia-de/tbb/pkg/command"
 )
 
 func main() {
-	// Load your Telegram bot config (@see example.config.yml)
-	cfg := tbb.LoadConfig('config.yml')
+	// Load your Telegram bot config
+	cfg := tbb.LoadConfig("config.yml")
 	tbot := tbb.New(
 		tbb.WithConfig(cfg),
 		tbb.WithCommands([]tbb.Command{
@@ -63,28 +64,31 @@ func main() {
 				Description: "Show the help message",
 				Handler:     &command.Help{},
 			},
+			{
+				Name:        "/id",
+				Description: "Get your Telegram user ID",
+				Handler:     &command.ID{},
+				Public:      true, // Bypasses AllowedChatIDs restrictions
+			},
 		}),
 	)
 	
-	tbot.Start() // Start tb new bot polling for updates
+	tbot.Start() // Start the new bot polling for updates
 }
 ```
 
 ### example.config.yml
 ```yaml
 ##############################################
-# Telegram Bot TBot example configuration #
+# Telegram Bot TBot example configuration    #
 ##############################################
 
 debug: true
 logLevel: info # One of debug | info | warn | error
 telegram:
   botToken: "YOUR_TELEGRAM_BOT_TOKEN" # Enter your Telegram bot token which can be obtained from https://telegram.me/botfather
-database:
-  type: sqlite # One of sqlite | postgres | mysql
-  filename: "tbot.db" # Only required for type sqlite
-  #dsn: "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local" # Only required for type postgres or mysql
+# Note: database type and connection parameters are omitted as we use default InMemoryStore
 botSessionTimeout: 5 # Timeout in minutes before bot sessions will be deleted to save memory.
 ```
 
-> For an example of how to implement your own UpdateHandler see `cmd/example/main.go` 
+> For an example of how to implement your own UpdateHandler see `cmd/example/main.go`

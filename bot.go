@@ -69,9 +69,9 @@ func (b *Bot) TBot() *TBot {
 	return b.tbot
 }
 
-// DB Returns the database reference
-func (b *Bot) DB() *DB {
-	return b.tbot.DB()
+// Store returns the user store.
+func (b *Bot) Store() UserStore {
+	return b.tbot.Store()
 }
 
 // IsUserActive returns true if the user is active or false otherwise
@@ -121,11 +121,14 @@ func (b *Bot) Update(u *echotron.Update) {
 
 	b.resetSessionTimeout()
 
+	cmd := b.getCommand(u)
+	isPublicFlow := (cmd != nil && cmd.Public) || (b.state != nil && b.cmd != nil && b.cmd.Public)
+
 	// Allow only users from AllowedChatIDs to use the bot
-	if len(b.tbot.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.tbot.cfg.AllowedChatIDs, u.ChatID()) {
+	if len(b.tbot.cfg.AllowedChatIDs) > 0 && !slices.Contains(b.tbot.cfg.AllowedChatIDs, u.ChatID()) && !isPublicFlow {
 		if b.user.UserInfo.IsActive {
 			b.DisableUser()
-			b.DB().Save(b.user)
+			_ = b.Store().Save(b.user)
 		}
 		b.logger.Info("Access denied for user", "user", PrintAsJson(b.User(), false), "update", PrintAsJson(u, false))
 		return
@@ -135,7 +138,7 @@ func (b *Bot) Update(u *echotron.Update) {
 	go b.updateUserData(u, updateDuration)
 
 	// Commands always take the highest precedence
-	if cmd := b.getCommand(u); cmd != nil {
+	if cmd != nil {
 		b.cmd = cmd
 		if b.cmd.Handler != nil {
 			b.cmd.Handler.SetBot(b)
@@ -262,7 +265,7 @@ func (b *Bot) updateUser(u *echotron.Update) error {
 		b.Log().Warn(err.Error())
 	}
 
-	return b.tbot.DB().Save(b.user).Error
+	return b.tbot.Store().Save(b.user)
 }
 
 // updateUserData updates the DB user data with data from Telegram update only if the

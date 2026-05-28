@@ -30,7 +30,7 @@ func (h *myBotHandler) HandleMessage(m echotron.Message) tbb.StateFn {
 }
 
 func main() {
-	// Load your Telegram bot config (@see example.config.yml)
+	// Load config (database parameters are omitted as we use default InMemoryStore)
 	cfg := tbb.LoadConfig("config.yml")
 
 	app := tbb.New(
@@ -59,6 +59,12 @@ func main() {
 				Name:        "/help",
 				Description: "Show the help message",
 				Handler:     &command.Help{},
+			},
+			{
+				Name:        "/id",
+				Description: "Get your Telegram user ID",
+				Handler:     &command.ID{},
+				Public:      true, // This command is public and bypasses AllowedChatIDs restriction
 			},
 		}),
 		tbb.WithHandlerFunc(func() tbb.UpdateHandler {
